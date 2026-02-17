@@ -3,7 +3,7 @@ export interface WidgetConfig {
   amount: number; // sats
   description: string;
   callback?: string; // global function name
-  theme: "light" | "dark" | "auto";
+  theme: "light" | "dark" | "auto" | "neon-vice" | "laser-eyes" | "smooth-sailing" | "cyberdeck" | "vaporwave" | "terminal" | "bubblegum";
   buttonText: string;
   size: "normal" | "compact";
 }
@@ -39,8 +39,8 @@ export function parseConfig(element: HTMLElement): WidgetConfig {
   }
 
   const theme = (element.dataset.theme || DEFAULTS.theme) as WidgetConfig["theme"];
-  if (!["light", "dark", "auto"].includes(theme)) {
-    throw new Error('BitCaptcha: data-theme must be "light", "dark", or "auto"');
+  if (!["light", "dark", "auto", "neon-vice", "laser-eyes", "smooth-sailing", "cyberdeck", "vaporwave", "terminal", "bubblegum"].includes(theme)) {
+    throw new Error('BitCaptcha: data-theme must be "light", "dark", "auto", "neon-vice", "laser-eyes", "smooth-sailing", "cyberdeck", "vaporwave", "terminal", or "bubblegum"');
   }
 
   const size = (element.dataset.size || DEFAULTS.size) as WidgetConfig["size"];

@@ -7,7 +7,7 @@ import { copyToClipboard } from "../utils/clipboard.js";
 export interface RendererOptions {
   buttonText: string;
   amount: number;
-  theme: "light" | "dark" | "auto";
+  theme: string;
   size: "normal" | "compact";
   onVerifyClick: () => void;
   onRetryClick: () => void;
@@ -28,10 +28,8 @@ export class Renderer {
     this.shadow.appendChild(style);
 
     // Set theme class
-    if (options.theme === "dark") {
-      (this.shadow as any).host.classList.add("bc-theme-dark");
-    } else if (options.theme === "auto") {
-      (this.shadow as any).host.classList.add("bc-theme-auto");
+    if (options.theme !== "light") {
+      (this.shadow as any).host.classList.add(`bc-theme-${options.theme}`);
     }
 
     if (options.size === "compact") {
