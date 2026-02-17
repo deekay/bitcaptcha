@@ -1,0 +1,26 @@
+{
+  "name": "bitcaptcha",
+  "version": "0.1.0",
+  "description": "Drop-in widget that gates access behind small Lightning payments",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "dev": "node esbuild.config.mjs --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "size": "node esbuild.config.mjs && gzip -c dist/widget.js | wc -c"
+  },
+  "devDependencies": {
+    "@noble/ciphers": "^1.2.1",
+    "@noble/curves": "^2.0.1",
+    "@noble/hashes": "^1.7.1",
+    "@noble/secp256k1": "^2.2.3",
+    "@scure/base": "^1.2.4",
+    "esbuild": "^0.25.0",
+    "happy-dom": "^17.4.4",
+    "qr-creator": "^1.0.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}
