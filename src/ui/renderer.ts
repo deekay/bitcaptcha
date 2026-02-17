@@ -84,7 +84,7 @@ export class Renderer {
     this.container.innerHTML = `
       <div class="bc-container">
         <div class="bc-amount">\u20BF${this.options.amount}</div>
-        <button class="bc-button" disabled>
+        <button class="bc-button" disabled aria-busy="true">
           ${spinnerIcon}
           Creating invoice...
         </button>
@@ -103,7 +103,7 @@ export class Renderer {
             Copy Invoice
           </button>
         </div>
-        <div class="bc-status">${spinnerIcon} Waiting for payment...</div>
+        <div class="bc-status" role="status">${spinnerIcon} Waiting for payment...</div>
       </div>
     `;
 
@@ -130,7 +130,7 @@ export class Renderer {
     this.container.innerHTML = `
       <div class="bc-container">
         <div class="bc-amount">\u20BF${this.options.amount}</div>
-        <button class="bc-button" disabled>
+        <button class="bc-button" disabled aria-busy="true">
           ${spinnerIcon}
           Confirm in wallet...
         </button>
@@ -145,13 +145,14 @@ export class Renderer {
           ${checkIcon}
           Verified
         </div>
+        <div class="bc-verified-sub">Payment confirmed</div>
       </div>
     `;
   }
 
   private renderError(data: StateData): void {
     this.container.innerHTML = `
-      <div class="bc-container bc-error-state">
+      <div class="bc-container bc-error-state" role="alert">
         <div class="bc-error-msg">${this.escapeHtml(data.error || "Something went wrong")}</div>
         <button class="bc-retry-btn" data-action="retry">
           Try again
