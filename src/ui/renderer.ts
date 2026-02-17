@@ -70,7 +70,7 @@ export class Renderer {
   private renderIdle(): void {
     this.container.innerHTML = `
       <div class="bc-container">
-        <div class="bc-amount">${this.options.amount} sats</div>
+        <div class="bc-amount">\u20BF${this.options.amount}</div>
         <button class="bc-button" data-action="verify">
           ${lightningIcon}
           ${this.escapeHtml(this.options.buttonText)}
@@ -83,7 +83,7 @@ export class Renderer {
   private renderInvoicing(): void {
     this.container.innerHTML = `
       <div class="bc-container">
-        <div class="bc-amount">${this.options.amount} sats</div>
+        <div class="bc-amount">\u20BF${this.options.amount}</div>
         <button class="bc-button" disabled>
           ${spinnerIcon}
           Creating invoice...
@@ -95,7 +95,7 @@ export class Renderer {
   private renderAwaitingPayment(data: StateData): void {
     this.container.innerHTML = `
       <div class="bc-container">
-        <div class="bc-amount">${this.options.amount} sats</div>
+        <div class="bc-amount">\u20BF${this.options.amount}</div>
         <div class="bc-qr-container" data-qr></div>
         <div class="bc-invoice-actions">
           <button class="bc-copy-btn" data-action="copy">
@@ -129,7 +129,7 @@ export class Renderer {
   private renderWeblnPrompt(): void {
     this.container.innerHTML = `
       <div class="bc-container">
-        <div class="bc-amount">${this.options.amount} sats</div>
+        <div class="bc-amount">\u20BF${this.options.amount}</div>
         <button class="bc-button" disabled>
           ${spinnerIcon}
           Confirm in wallet...
