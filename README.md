@@ -2,6 +2,8 @@
 
 Drop-in widget that gates access behind small Lightning payments. No server, no central service, no identity required.
 
+**[Live Demo](https://deekay.github.io/bitcaptcha/)**
+
 ## Quick Start
 
 Add two lines to your HTML:
