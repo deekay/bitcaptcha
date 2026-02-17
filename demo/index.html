@@ -3,128 +3,499 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BitCaptcha Demo</title>
+  <title>BitCaptcha</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #f5f5f5;
       color: #1a1a2e;
       min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 40px 20px;
     }
-    h1 { margin-bottom: 8px; }
-    p.subtitle { color: #6b7280; margin-bottom: 32px; }
-    .demo-section {
+
+    .hero {
+      text-align: center;
+      padding: 48px 20px 32px;
+    }
+    .hero h1 { font-size: 32px; margin-bottom: 8px; }
+    .hero p { color: #6b7280; font-size: 16px; max-width: 480px; margin: 0 auto; }
+
+    .main {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 0 20px 60px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 700px) {
+      .main { grid-template-columns: 1fr; }
+    }
+
+    .panel {
       background: white;
       border: 1px solid #e5e7eb;
       border-radius: 12px;
       padding: 24px;
-      margin-bottom: 24px;
-      max-width: 400px;
-      width: 100%;
     }
-    .demo-section h2 {
-      font-size: 16px;
-      margin-bottom: 4px;
-    }
-    .demo-section p {
-      font-size: 13px;
+    .panel h2 {
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
       color: #6b7280;
       margin-bottom: 16px;
     }
-    .config-note {
-      background: #fffbeb;
-      border: 1px solid #fcd34d;
-      border-radius: 8px;
-      padding: 12px 16px;
+
+    /* --- Config controls --- */
+    .field { margin-bottom: 14px; }
+    .field label {
+      display: block;
       font-size: 13px;
-      color: #92400e;
-      margin-bottom: 24px;
-      max-width: 400px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    .field input[type="text"],
+    .field input[type="number"],
+    .field textarea {
       width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
     }
-    code {
-      background: #f3f4f6;
-      padding: 2px 4px;
-      border-radius: 4px;
+    .field textarea {
+      font-family: monospace;
       font-size: 12px;
+      resize: vertical;
+      min-height: 60px;
     }
-    #callback-log {
+    .field input:focus, .field textarea:focus {
+      outline: none;
+      border-color: #f7931a;
+      box-shadow: 0 0 0 2px rgba(247, 147, 26, 0.15);
+    }
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .field select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      background: white;
+    }
+    .field-hint {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-top: 2px;
+    }
+
+    /* --- Preview area --- */
+    .preview-area {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .preview-box {
+      border: 1px dashed #d1d5db;
+      border-radius: 8px;
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100px;
+      transition: background 0.2s;
+    }
+    .preview-box.dark-bg {
+      background: #1a1a2e;
+      border-color: #374151;
+    }
+
+    /* --- State gallery --- */
+    .state-tabs {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .state-tab {
+      padding: 5px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 12px;
+      background: white;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .state-tab:hover { border-color: #f7931a; }
+    .state-tab.active {
+      background: #f7931a;
+      color: white;
+      border-color: #f7931a;
+    }
+
+    /* --- Embed code --- */
+    .embed-section { grid-column: 1 / -1; }
+    .embed-code {
+      background: #1a1a2e;
+      color: #e5e7eb;
+      padding: 16px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-all;
+      position: relative;
+    }
+    .copy-embed {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 4px 10px;
+      border: 1px solid #4b5563;
+      border-radius: 4px;
+      background: #374151;
+      color: #e5e7eb;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .copy-embed:hover { background: #4b5563; }
+
+    /* --- Try it live --- */
+    .try-live {
+      grid-column: 1 / -1;
+    }
+    .try-live-inner {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: start;
+    }
+    @media (max-width: 700px) {
+      .try-live-inner { grid-template-columns: 1fr; }
+    }
+    .try-live .field textarea {
+      min-height: 44px;
+    }
+    .try-btn {
+      padding: 8px 20px;
+      background: #f7931a;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      margin-top: 22px;
+    }
+    .try-btn:hover { background: #e8850f; }
+    .try-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    #live-widget-area {
+      margin-top: 16px;
+      display: flex;
+      justify-content: center;
+    }
+    #live-log {
       font-family: monospace;
       font-size: 12px;
       background: #1a1a2e;
       color: #22c55e;
-      padding: 12px;
-      border-radius: 8px;
-      margin-top: 16px;
-      min-height: 40px;
+      padding: 10px 14px;
+      border-radius: 6px;
+      margin-top: 12px;
+      min-height: 32px;
       white-space: pre-wrap;
+      display: none;
     }
   </style>
 </head>
 <body>
-  <h1>BitCaptcha Demo</h1>
-  <p class="subtitle">Drop-in Lightning payment widget</p>
 
-  <div class="config-note">
-    To test with a real wallet, replace the <code>data-wallet</code> attribute below with your NWC connection string from Alby Hub or another NWC-compatible wallet.
-  </div>
+<div class="hero">
+  <h1>BitCaptcha</h1>
+  <p>Drop-in widget that gates access behind small Lightning payments. Configure it below and grab the embed code.</p>
+</div>
 
-  <!-- Light theme (default) -->
-  <div class="demo-section">
-    <h2>Light Theme</h2>
-    <p>Default configuration with 100 sats</p>
-    <div id="bitcaptcha"
-         data-wallet="nostr+walletconnect://PUT_YOUR_WALLET_PUBKEY_HERE?relay=wss://relay.getalby.com/v1&secret=PUT_YOUR_SECRET_HERE"
-         data-amount="100"
-         data-description="Demo verification payment"
-         data-callback="onVerified"
-         data-theme="light">
+<div class="main">
+
+  <!-- Left: Config -->
+  <div class="panel">
+    <h2>Configure</h2>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="cfg-amount">Amount (sats)</label>
+        <input type="number" id="cfg-amount" value="100" min="1">
+      </div>
+      <div class="field">
+        <label for="cfg-theme">Theme</label>
+        <select id="cfg-theme">
+          <option value="auto">Auto</option>
+          <option value="light" selected>Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="cfg-button">Button text</label>
+      <input type="text" id="cfg-button" value="Verify with Bitcoin">
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="cfg-size">Size</label>
+        <select id="cfg-size">
+          <option value="normal" selected>Normal</option>
+          <option value="compact">Compact</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="cfg-callback">Callback function</label>
+        <input type="text" id="cfg-callback" value="onVerified" placeholder="e.g. onVerified">
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="cfg-description">Invoice description</label>
+      <input type="text" id="cfg-description" value="Verification payment">
+    </div>
+
+    <div style="margin-top: 16px;">
+      <h2>Preview State</h2>
+      <div class="state-tabs">
+        <button class="state-tab active" data-state="idle">Idle</button>
+        <button class="state-tab" data-state="invoicing">Invoicing</button>
+        <button class="state-tab" data-state="awaiting_payment">QR Code</button>
+        <button class="state-tab" data-state="verified">Verified</button>
+        <button class="state-tab" data-state="error">Error</button>
+      </div>
     </div>
   </div>
 
-  <!-- Dark theme -->
-  <div class="demo-section" style="background: #1a1a2e;">
-    <h2 style="color: #e5e7eb;">Dark Theme</h2>
-    <p style="color: #9ca3af;">Custom button text, 50 sats</p>
-    <div data-bitcaptcha
-         data-wallet="nostr+walletconnect://PUT_YOUR_WALLET_PUBKEY_HERE?relay=wss://relay.getalby.com/v1&secret=PUT_YOUR_SECRET_HERE"
-         data-amount="50"
-         data-description="Access payment"
-         data-theme="dark"
-         data-button-text="Pay to Continue">
+  <!-- Right: Preview -->
+  <div class="panel preview-area">
+    <h2>Preview</h2>
+    <div class="preview-box" id="preview-box">
+      <div id="preview-widget"></div>
     </div>
   </div>
 
-  <!-- Compact size -->
-  <div class="demo-section">
-    <h2>Compact Size</h2>
-    <p>Inline widget for forms</p>
-    <div data-bitcaptcha
-         data-wallet="nostr+walletconnect://PUT_YOUR_WALLET_PUBKEY_HERE?relay=wss://relay.getalby.com/v1&secret=PUT_YOUR_SECRET_HERE"
-         data-amount="10"
-         data-size="compact"
-         data-theme="light">
+  <!-- Embed code -->
+  <div class="panel embed-section">
+    <h2>Embed Code</h2>
+    <div class="embed-code" id="embed-code">
+      <button class="copy-embed" id="copy-embed">Copy</button>
     </div>
   </div>
 
-  <!-- Callback log -->
-  <div class="demo-section">
-    <h2>Callback Log</h2>
-    <p>Shows verification tokens from <code>onVerified</code> callback</p>
-    <div id="callback-log">Waiting for verification...</div>
+  <!-- Try it live -->
+  <div class="panel try-live">
+    <h2>Try It Live</h2>
+    <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">
+      Paste your wallet connection string to test a real payment. Get one from
+      <a href="https://albyhub.com" target="_blank" style="color: #f7931a;">Alby Hub</a> (create a receive-only app connection).
+    </p>
+    <div class="try-live-inner">
+      <div class="field" style="margin-bottom: 0;">
+        <label for="wallet-input">Wallet connection string</label>
+        <textarea id="wallet-input" rows="2" placeholder="nostr+walletconnect://..."></textarea>
+      </div>
+      <button class="try-btn" id="try-btn" disabled>Activate</button>
+    </div>
+    <div id="live-widget-area"></div>
+    <div id="live-log"></div>
   </div>
 
-  <script src="../dist/widget.js"></script>
-  <script>
-    function onVerified(token) {
-      const log = document.getElementById('callback-log');
-      log.textContent = 'Verified!\n' + JSON.stringify(token, null, 2);
+</div>
+
+<script src="../dist/widget.js"></script>
+<script>
+(function() {
+  // --- Config state ---
+  const cfg = {
+    amount: 100,
+    theme: 'light',
+    buttonText: 'Verify with Bitcoin',
+    size: 'normal',
+    callback: 'onVerified',
+    description: 'Verification payment',
+  };
+  let currentState = 'idle';
+
+  // --- DOM refs ---
+  const previewBox = document.getElementById('preview-box');
+  const previewWidget = document.getElementById('preview-widget');
+  const embedCode = document.getElementById('embed-code');
+  const copyBtn = document.getElementById('copy-embed');
+  const walletInput = document.getElementById('wallet-input');
+  const tryBtn = document.getElementById('try-btn');
+  const liveArea = document.getElementById('live-widget-area');
+  const liveLog = document.getElementById('live-log');
+
+  // --- Preview renderer ---
+  let renderer = null;
+
+  function rebuildPreview() {
+    // Remove old widget and create fresh element
+    const old = document.getElementById('preview-widget');
+    const fresh = document.createElement('div');
+    fresh.id = 'preview-widget';
+    old.replaceWith(fresh);
+
+    // Update preview background
+    previewBox.classList.toggle('dark-bg', cfg.theme === 'dark');
+
+    renderer = new BitCaptcha.Renderer(fresh, {
+      buttonText: cfg.buttonText,
+      amount: cfg.amount,
+      theme: cfg.theme,
+      size: cfg.size,
+      onVerifyClick: function() {},
+      onRetryClick: function() {},
+    });
+
+    showState(currentState);
+  }
+
+  function showState(state) {
+    currentState = state;
+    if (!renderer) return;
+
+    var data = {};
+    if (state === 'awaiting_payment') {
+      data = {
+        invoice: 'lnbc1u1pnexampleinvoicedatathatisjustlongenoughtorenderaproperlookingqrcodeinthewidgetpreview0123456789abcdef',
+        paymentHash: 'abc123',
+      };
+    } else if (state === 'error') {
+      data = { error: 'Wallet is offline' };
     }
-  </script>
+    renderer.render(state, data);
+  }
+
+  // --- Embed code generation ---
+  function updateEmbedCode() {
+    var attrs = '';
+    attrs += '\n     data-wallet="YOUR_WALLET_CONNECTION_STRING"';
+    if (cfg.amount !== 100) attrs += '\n     data-amount="' + cfg.amount + '"';
+    if (cfg.description !== 'Verification payment') attrs += '\n     data-description="' + cfg.description + '"';
+    if (cfg.theme !== 'auto') attrs += '\n     data-theme="' + cfg.theme + '"';
+    if (cfg.buttonText !== 'Verify with Bitcoin') attrs += '\n     data-button-text="' + cfg.buttonText + '"';
+    if (cfg.size !== 'normal') attrs += '\n     data-size="' + cfg.size + '"';
+    if (cfg.callback) attrs += '\n     data-callback="' + cfg.callback + '"';
+
+    var code = '<script src="https://deekay.github.io/bitcaptcha/widget.js"><\/script>\n';
+    code += '<div id="bitcaptcha"' + attrs + '>\n</div>';
+
+    // Set text content (preserving the copy button)
+    var textNode = embedCode.querySelector('.code-text');
+    if (!textNode) {
+      textNode = document.createElement('span');
+      textNode.className = 'code-text';
+      embedCode.insertBefore(textNode, embedCode.firstChild);
+    }
+    textNode.textContent = code;
+  }
+
+  // --- Bind config controls ---
+  document.getElementById('cfg-amount').addEventListener('input', function(e) {
+    cfg.amount = parseInt(e.target.value) || 100;
+    rebuildPreview();
+    updateEmbedCode();
+  });
+  document.getElementById('cfg-theme').addEventListener('change', function(e) {
+    cfg.theme = e.target.value;
+    rebuildPreview();
+    updateEmbedCode();
+  });
+  document.getElementById('cfg-button').addEventListener('input', function(e) {
+    cfg.buttonText = e.target.value || 'Verify with Bitcoin';
+    rebuildPreview();
+    updateEmbedCode();
+  });
+  document.getElementById('cfg-size').addEventListener('change', function(e) {
+    cfg.size = e.target.value;
+    rebuildPreview();
+    updateEmbedCode();
+  });
+  document.getElementById('cfg-callback').addEventListener('input', function(e) {
+    cfg.callback = e.target.value;
+    updateEmbedCode();
+  });
+  document.getElementById('cfg-description').addEventListener('input', function(e) {
+    cfg.description = e.target.value || 'Verification payment';
+    updateEmbedCode();
+  });
+
+  // --- State tabs ---
+  document.querySelectorAll('.state-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.state-tab').forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      showState(tab.dataset.state);
+    });
+  });
+
+  // --- Copy embed code ---
+  copyBtn.addEventListener('click', function() {
+    var text = embedCode.querySelector('.code-text').textContent;
+    navigator.clipboard.writeText(text).then(function() {
+      copyBtn.textContent = 'Copied!';
+      setTimeout(function() { copyBtn.textContent = 'Copy'; }, 2000);
+    });
+  });
+
+  // --- Try it live ---
+  walletInput.addEventListener('input', function() {
+    tryBtn.disabled = !walletInput.value.trim().startsWith('nostr+walletconnect://');
+  });
+
+  var liveWidget = null;
+  tryBtn.addEventListener('click', function() {
+    if (liveWidget) { liveWidget.destroy(); }
+    liveArea.innerHTML = '';
+    liveLog.style.display = 'block';
+    liveLog.textContent = 'Initializing...';
+
+    var el = document.createElement('div');
+    liveArea.appendChild(el);
+
+    try {
+      liveWidget = new BitCaptcha.BitCaptchaWidget(el, {
+        wallet: walletInput.value.trim(),
+        amount: cfg.amount,
+        description: cfg.description,
+        theme: cfg.theme,
+        buttonText: cfg.buttonText,
+        size: cfg.size,
+        callback: 'onBitCaptchaVerified',
+      });
+      liveLog.textContent = 'Widget ready. Click the button above to test a real payment.';
+    } catch(err) {
+      liveLog.textContent = 'Error: ' + err.message;
+    }
+  });
+
+  // Live callback
+  window.onBitCaptchaVerified = function(token) {
+    liveLog.textContent = 'Verified!\n' + JSON.stringify(token, null, 2);
+  };
+
+  // --- Init ---
+  rebuildPreview();
+  updateEmbedCode();
+})();
+</script>
 </body>
 </html>

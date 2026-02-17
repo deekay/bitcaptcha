@@ -3,6 +3,7 @@ import { parseConfig } from "./types.js";
 import type { WidgetConfig, VerificationToken } from "./types.js";
 
 export { BitCaptchaWidget, parseConfig };
+export { Renderer } from "./ui/renderer.js";
 export type { WidgetConfig, VerificationToken };
 
 function init(): void {
