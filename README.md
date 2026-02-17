@@ -7,9 +7,9 @@ Drop-in widget that gates access behind small Lightning payments. No server, no 
 Add two lines to your HTML:
 
 ```html
-<script src="https://bitcaptcha.github.io/widget.js"></script>
+<script src="https://deekay.github.io/bitcaptcha/widget.js"></script>
 <div id="bitcaptcha"
-     data-wallet="nostr+walletconnect://YOUR_PUBKEY?relay=wss://relay.example.com&secret=YOUR_SECRET"
+     data-wallet="YOUR_WALLET_CONNECTION_STRING"
      data-amount="100"
      data-callback="onVerified">
 </div>
@@ -20,28 +20,30 @@ That's it. The widget handles invoice generation, payment UX, and verification.
 ## How It Works
 
 1. User clicks "Verify with Bitcoin"
-2. Widget creates a Lightning invoice via your wallet (NWC)
+2. Widget creates a Lightning invoice via your wallet
 3. User pays via WebLN one-click or QR code scan
-4. Widget verifies payment (SHA256 preimage check)
+4. Widget verifies payment cryptographically
 5. Your callback fires with a verification token
 
 No backend needed. Your wallet handles everything.
 
 ## Setup
 
-### 1. Get an NWC Connection String
+### 1. Get a Wallet Connection String
 
-You need a Lightning wallet that supports [NWC (Nostr Wallet Connect)](https://nips.nostr.com/47). Create a **receive-only** connection with `make_invoice` + `lookup_invoice` permissions.
+You need a Lightning wallet that can generate invoices. Create a **receive-only** connection in your wallet and copy the connection string.
 
 **Recommended wallets:**
 - [Alby Hub](https://albyhub.com) — self-hosted, available now, 0% fee
-- [Lexe](https://lexe.app) — always-online SGX enclaves, 0.5% fee (closed beta)
+- [Lexe](https://lexe.app) — always-online, 0.5% fee (closed beta)
+
+In your wallet, create a new app connection with **receive-only** permissions (`make_invoice` + `lookup_invoice`). Copy the connection string it gives you.
 
 ### 2. Configure the Widget
 
 ```html
 <div id="bitcaptcha"
-     data-wallet="nostr+walletconnect://..."
+     data-wallet="YOUR_WALLET_CONNECTION_STRING"
      data-amount="100"
      data-description="Verify to continue"
      data-theme="auto"
@@ -53,7 +55,7 @@ You need a Lightning wallet that supports [NWC (Nostr Wallet Connect)](https://n
 
 | Attribute | Required | Default | Description |
 |-----------|----------|---------|-------------|
-| `data-wallet` | Yes | — | NWC connection string |
+| `data-wallet` | Yes | — | Wallet connection string |
 | `data-amount` | No | `100` | Sats required |
 | `data-description` | No | `"Verification payment"` | Invoice description |
 | `data-callback` | No | — | Global function name called on success |
@@ -90,19 +92,18 @@ function onVerified(token) {
 
 ```
 User clicks button
-  → Widget connects to Nostr relay (WebSocket)
-    → Sends encrypted make_invoice request to your wallet
-      → Wallet creates Lightning invoice
-        → WebLN detected? → One-click payment prompt
-        → No WebLN? → QR code + copy invoice
-          → Widget polls lookup_invoice
-            → Payment settled → SHA256(preimage) === payment_hash
-              → Callback fires with verification token
+  → Widget connects to your wallet
+    → Wallet creates Lightning invoice
+      → WebLN detected? → One-click payment prompt
+      → No WebLN? → QR code + copy invoice
+        → Widget checks for payment
+          → Payment settled → Cryptographic verification
+            → Callback fires with verification token
 ```
 
 ## Security
 
-- The NWC connection string is **receive-only** — it cannot spend your funds
+- The wallet connection string is **receive-only** — it cannot spend your funds
 - Worst case from exposing the string is invoice spam (mitigable with wallet-side rate limits)
 - Payment verification uses SHA256 preimage check — cryptographically sound
 - Widget renders in a closed Shadow DOM — styles can't leak in or out
@@ -118,19 +119,18 @@ npm run dev       # Watch mode with sourcemaps
 npm run size      # Check gzipped bundle size
 ```
 
-### Demo
+### Local Demo
 
 ```bash
 npm run build
 npx serve demo
 ```
 
-Open http://localhost:3000 and update the `data-wallet` attributes with your NWC connection string.
+Then open the local URL and update the `data-wallet` attributes in `demo/index.html` with your wallet connection string.
 
 ## Architecture
 
 - **TypeScript** with esbuild IIFE bundle
-- **NIP-44 v2** encryption (audited, test-vector verified)
 - **Shadow DOM** (closed) for CSS isolation
 - **WebLN first** → QR code fallback → copy invoice
 - **Payment state machine** with enforced transitions
