@@ -275,16 +275,6 @@
       <input type="text" id="cfg-description" value="Verification payment">
     </div>
 
-    <div style="margin-top: 16px;">
-      <h2>Preview State</h2>
-      <div class="state-tabs">
-        <button class="state-tab active" data-state="idle">Idle</button>
-        <button class="state-tab" data-state="invoicing">Invoicing</button>
-        <button class="state-tab" data-state="awaiting_payment">QR Code</button>
-        <button class="state-tab" data-state="verified">Verified</button>
-        <button class="state-tab" data-state="error">Error</button>
-      </div>
-    </div>
   </div>
 
   <!-- Right: Preview -->
@@ -292,6 +282,13 @@
     <h2>Preview</h2>
     <div class="preview-box" id="preview-box">
       <div id="preview-widget"></div>
+    </div>
+    <div class="state-tabs">
+      <button class="state-tab active" data-state="idle">Idle</button>
+      <button class="state-tab" data-state="invoicing">Invoicing</button>
+      <button class="state-tab" data-state="awaiting_payment">QR Code</button>
+      <button class="state-tab" data-state="verified">Verified</button>
+      <button class="state-tab" data-state="error">Error</button>
     </div>
   </div>
 
