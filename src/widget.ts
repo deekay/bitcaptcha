@@ -95,12 +95,13 @@ export class BitCaptchaWidget {
 
       try {
         const result = await this.nwc.lookupInvoice(paymentHash);
+        console.log("[BitCaptcha] lookup_invoice result:", JSON.stringify(result));
         if (result.settled_at && result.preimage) {
           this.stopPolling();
           this.handlePaymentReceived(result.preimage, paymentHash);
         }
-      } catch {
-        // Ignore individual poll failures — will retry on next interval
+      } catch (err) {
+        console.warn("[BitCaptcha] lookup_invoice poll failed:", err instanceof Error ? err.message : err);
       }
     }, POLL_INTERVAL);
   }
