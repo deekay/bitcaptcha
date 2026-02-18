@@ -27,6 +27,7 @@ export class BitCaptchaWidget {
       size: config.size,
       onVerifyClick: () => this.startPayment(),
       onRetryClick: () => this.retry(),
+      onManualPreimage: (preimage) => this.verifyManualPreimage(preimage),
     });
 
     this.stateMachine.onStateChange((state, data) => {
@@ -96,7 +97,7 @@ export class BitCaptchaWidget {
       try {
         const result = await this.nwc.lookupInvoice(paymentHash);
         console.log("[BitCaptcha] lookup_invoice result:", JSON.stringify(result));
-        if (result.settled_at && result.preimage) {
+        if (result.preimage) {
           this.stopPolling();
           this.handlePaymentReceived(result.preimage, paymentHash);
         }
@@ -149,6 +150,17 @@ export class BitCaptchaWidget {
         `BitCaptcha: callback "${callbackName}" is not a function on window`,
       );
     }
+  }
+
+  private verifyManualPreimage(preimage: string): boolean {
+    const paymentHash = this.stateMachine.data.paymentHash;
+    if (!paymentHash) return false;
+
+    if (!verifyPreimage(preimage, paymentHash)) return false;
+
+    this.stopPolling();
+    this.handlePaymentReceived(preimage, paymentHash);
+    return true;
   }
 
   private retry(): void {

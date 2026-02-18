@@ -67,7 +67,7 @@ describe("parseConfig", () => {
     });
 
     const config = parseConfig(el);
-    expect(config.amount).toBe(100);
+    expect(config.amount).toBe(1);
     expect(config.description).toBe("Verification payment");
     expect(config.theme).toBe("auto");
     expect(config.buttonText).toBe("Verify with Bitcoin");

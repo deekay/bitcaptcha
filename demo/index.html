@@ -343,7 +343,7 @@
       <div class="field-row">
         <div class="field">
           <label for="cfg-amount">Amount (&#x20BF;)</label>
-          <input type="number" id="cfg-amount" value="100" min="1">
+          <input type="number" id="cfg-amount" value="1" min="1">
         </div>
         <div class="field">
           <label for="cfg-theme">Theme</label>
@@ -443,7 +443,7 @@
 (function() {
   // --- Config state ---
   const cfg = {
-    amount: 100,
+    amount: 1,
     theme: 'neon-vice',
     buttonText: 'Verify with Bitcoin',
     size: 'normal',
@@ -543,7 +543,7 @@
 
   // --- Bind config controls ---
   document.getElementById('cfg-amount').addEventListener('input', function(e) {
-    cfg.amount = parseInt(e.target.value) || 100;
+    cfg.amount = parseInt(e.target.value) || 1;
     rebuildPreview();
     updateEmbedCode();
   });

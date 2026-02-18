@@ -15,7 +15,7 @@ export interface VerificationToken {
 }
 
 const DEFAULTS: Omit<WidgetConfig, "wallet"> = {
-  amount: 100,
+  amount: 1,
   description: "Verification payment",
   theme: "auto",
   buttonText: "Verify with Bitcoin",
