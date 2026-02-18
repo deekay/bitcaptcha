@@ -20,6 +20,10 @@ const NWC_REQUEST_KIND = 23194;
 const NWC_RESPONSE_KIND = 23195;
 const DEFAULT_TIMEOUT = 30_000;
 
+function debug(...args: unknown[]) {
+  console.log("[BitCaptcha NWC]", ...args);
+}
+
 export class NwcClient {
   private params: NwcConnectionParams;
   private clientPubkey: string;
@@ -34,34 +38,45 @@ export class NwcClient {
       this.params.secret,
       this.params.walletPubkey,
     );
+    debug("Client pubkey:", this.clientPubkey);
+    debug("Wallet pubkey:", this.params.walletPubkey);
+    debug("Relay:", this.params.relayUrl);
   }
 
   async connect(): Promise<void> {
-    if (this.ws?.readyState === WebSocket.OPEN) return;
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      debug("Already connected");
+      return;
+    }
 
     // If already connecting, wait for that to finish
     if (this.wsConnecting) return this.wsConnecting;
 
+    debug("Connecting to relay:", this.params.relayUrl);
     this.wsConnecting = new Promise<void>((resolve, reject) => {
       const ws = new WebSocket(this.params.relayUrl);
       this.ws = ws;
 
       const timeout = setTimeout(() => {
+        debug("Connection timeout after 30s");
         ws.close();
         reject(new Error("WebSocket connection timeout"));
       }, DEFAULT_TIMEOUT);
 
       ws.onopen = () => {
+        debug("WebSocket connected");
         clearTimeout(timeout);
         resolve();
       };
 
-      ws.onerror = () => {
+      ws.onerror = (e) => {
+        debug("WebSocket error:", e);
         clearTimeout(timeout);
         reject(new Error("WebSocket connection failed"));
       };
 
-      ws.onclose = () => {
+      ws.onclose = (e) => {
+        debug("WebSocket closed, code:", e?.code, "reason:", e?.reason);
         this.ws = null;
         this.wsConnecting = null;
       };
@@ -83,6 +98,7 @@ export class NwcClient {
       await this.connect();
     }
 
+    debug("Encrypting request:", request.method);
     const encrypted = await nip04Encrypt(
       JSON.stringify(request),
       this.sharedSecret,
@@ -99,12 +115,14 @@ export class NwcClient {
       this.params.secret,
     );
 
+    debug("Request event ID:", event.id);
+
     const ws = this.ws!;
     const subId = "bitcaptcha-" + event.id.slice(0, 8);
 
     return new Promise<NwcResponse>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        // Unsubscribe and clean up
+        debug("REQUEST TIMEOUT after 30s — no response received for", request.method);
         this.send(["CLOSE", subId]);
         ws.removeEventListener("message", onMessage);
         reject(new Error(`NWC request timeout: ${request.method}`));
@@ -121,35 +139,64 @@ export class NwcClient {
         }
         if (!Array.isArray(parsed)) return;
 
+        const msgType = parsed[0];
+
+        // Log all relay messages for this subscription
+        if (parsed[1] === subId) {
+          debug("Relay message:", msgType, "subId:", subId);
+        }
+
+        // Log OK/NOTICE messages from relay (publish confirmations or errors)
+        if (msgType === "OK") {
+          debug("Relay OK:", parsed[1], "accepted:", parsed[2], "message:", parsed[3]);
+        }
+        if (msgType === "NOTICE") {
+          debug("Relay NOTICE:", parsed[1]);
+        }
+
         // Wait for EOSE before publishing the request
-        if (parsed[0] === "EOSE" && parsed[1] === subId) {
+        if (msgType === "EOSE" && parsed[1] === subId) {
           if (!eoseReceived) {
             eoseReceived = true;
-            // Now safe to publish — relay is listening
+            debug("EOSE received — publishing request event");
             this.send(["EVENT", event]);
           }
           return;
         }
 
         // Handle response event
-        if (parsed[0] === "EVENT" && parsed[1] === subId && parsed[2]) {
+        if (msgType === "EVENT" && parsed[1] === subId && parsed[2]) {
           const responseEvent = parsed[2] as NostrEvent;
-          if (responseEvent.kind !== NWC_RESPONSE_KIND) return;
-          if (responseEvent.pubkey !== this.params.walletPubkey) return;
+          debug("Got EVENT, kind:", responseEvent.kind, "from:", responseEvent.pubkey.slice(0, 12) + "...");
+
+          if (responseEvent.kind !== NWC_RESPONSE_KIND) {
+            debug("Ignoring: wrong kind (expected", NWC_RESPONSE_KIND, ")");
+            return;
+          }
+          if (responseEvent.pubkey !== this.params.walletPubkey) {
+            debug("Ignoring: wrong pubkey (expected", this.params.walletPubkey.slice(0, 12) + "...)");
+            return;
+          }
 
           // Verify this response is for our request (check "e" tag)
           const eTag = responseEvent.tags.find((t) => t[0] === "e");
-          if (!eTag || eTag[1] !== event.id) return;
+          if (!eTag || eTag[1] !== event.id) {
+            debug("Ignoring: e-tag mismatch, got:", eTag?.[1]?.slice(0, 12), "expected:", event.id.slice(0, 12));
+            return;
+          }
 
+          debug("Decrypting response...");
           nip04Decrypt(responseEvent.content, this.sharedSecret)
             .then((decrypted) => {
               const response = JSON.parse(decrypted) as NwcResponse;
+              debug("Response:", JSON.stringify(response));
               clearTimeout(timeout);
               this.send(["CLOSE", subId]);
               ws.removeEventListener("message", onMessage);
               resolve(response);
             })
             .catch((err) => {
+              debug("Decrypt FAILED:", err);
               clearTimeout(timeout);
               this.send(["CLOSE", subId]);
               ws.removeEventListener("message", onMessage);
@@ -171,6 +218,7 @@ export class NwcClient {
         "#p": [this.clientPubkey],
         since: Math.floor(Date.now() / 1000) - 10,
       };
+      debug("Subscribing with filter:", JSON.stringify(filter));
       this.send(["REQ", subId, filter]);
     });
   }
@@ -185,6 +233,7 @@ export class NwcClient {
     amountSats: number,
     description: string,
   ): Promise<MakeInvoiceResult> {
+    debug("makeInvoice:", amountSats, "sats,", `"${description}"`);
     const response = await this.sendRequest({
       method: "make_invoice",
       params: {
@@ -218,6 +267,7 @@ export class NwcClient {
   }
 
   disconnect(): void {
+    debug("Disconnecting");
     this.ws?.close();
     this.ws = null;
     this.wsConnecting = null;
