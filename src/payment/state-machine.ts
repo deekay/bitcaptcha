@@ -26,6 +26,7 @@ export interface StateData {
   preimage?: string;
   error?: string;
   amount?: number;
+  showManualEntry?: boolean;
 }
 
 export class PaymentStateMachine {

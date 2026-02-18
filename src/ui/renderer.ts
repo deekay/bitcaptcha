@@ -103,7 +103,7 @@ export class Renderer {
           </button>
         </div>
         <div class="bc-status" role="status">${spinnerIcon} Waiting for payment...</div>
-        <details class="bc-manual">
+        <details class="bc-manual"${data.showManualEntry ? " open" : ""}>
           <summary class="bc-manual-toggle">Already paid?</summary>
           <div class="bc-manual-body">
             <p class="bc-manual-hint">Paste the payment preimage from your wallet:</p>

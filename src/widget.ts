@@ -85,6 +85,8 @@ export class BitCaptchaWidget {
     this.stopPolling();
     let pollCount = 0;
     let useListTx = false;
+    let listTxFailed = false;
+    let manualShown = false;
     const invoiceCreatedAt = Math.floor(Date.now() / 1000) - 10;
 
     this.pollTimer = setInterval(async () => {
@@ -97,30 +99,43 @@ export class BitCaptchaWidget {
         return;
       }
 
+      // After several failed polls, auto-show manual preimage entry
+      if (!manualShown && pollCount >= LIST_TX_FALLBACK_AFTER + 2) {
+        manualShown = true;
+        this.stateMachine.transition("awaiting_payment", {
+          showManualEntry: true,
+        });
+      }
+
       try {
-        // Try lookup_invoice first, switch to list_transactions if it never returns preimage
-        if (!useListTx) {
-          const result = await this.nwc.lookupInvoice(paymentHash);
-          if (result.preimage) {
-            this.stopPolling();
-            this.handlePaymentReceived(result.preimage, paymentHash);
-            return;
-          }
-          if (pollCount >= LIST_TX_FALLBACK_AFTER) {
-            console.log("[BitCaptcha] lookup_invoice not returning preimage, trying list_transactions");
-            useListTx = true;
-          }
+        // Try lookup_invoice first
+        const result = await this.nwc.lookupInvoice(paymentHash);
+        if (result.preimage) {
+          this.stopPolling();
+          this.handlePaymentReceived(result.preimage, paymentHash);
+          return;
         }
 
-        if (useListTx) {
-          const result = await this.nwc.listTransactions(invoiceCreatedAt);
-          const match = result.transactions?.find(
-            (tx) => tx.payment_hash === paymentHash && tx.preimage,
-          );
-          if (match?.preimage) {
-            this.stopPolling();
-            this.handlePaymentReceived(match.preimage, paymentHash);
-            return;
+        // Switch to list_transactions after N lookup failures
+        if (!useListTx && pollCount >= LIST_TX_FALLBACK_AFTER) {
+          console.log("[BitCaptcha] lookup_invoice not returning preimage, trying list_transactions");
+          useListTx = true;
+        }
+
+        if (useListTx && !listTxFailed) {
+          try {
+            const txResult = await this.nwc.listTransactions(invoiceCreatedAt);
+            const match = txResult.transactions?.find(
+              (tx) => tx.payment_hash === paymentHash && tx.preimage,
+            );
+            if (match?.preimage) {
+              this.stopPolling();
+              this.handlePaymentReceived(match.preimage, paymentHash);
+              return;
+            }
+          } catch {
+            console.warn("[BitCaptcha] list_transactions not supported, using manual fallback");
+            listTxFailed = true;
           }
         }
       } catch (err) {
