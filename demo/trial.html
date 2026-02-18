@@ -138,6 +138,12 @@
     /* --- Gated content area --- */
     .gated-wrapper {
       position: relative;
+      max-height: 300px;
+      overflow: hidden;
+      transition: max-height 0.8s ease;
+    }
+    .gated-wrapper.unlocked {
+      max-height: 2000px;
     }
 
     .gated-content {
@@ -360,6 +366,7 @@
   // Callback: unlock content on successful payment
   window.onBitCaptchaVerified = function(token) {
     document.getElementById('gated-content').classList.remove('locked');
+    document.querySelector('.gated-wrapper').classList.add('unlocked');
     document.getElementById('gate-overlay').classList.add('hidden');
     document.getElementById('success-banner').classList.add('visible');
   };
