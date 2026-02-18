@@ -46,11 +46,19 @@
     }
     .hero h1 {
       font-family: inherit;
-      font-size: 32px;
-      font-weight: 800;
-      letter-spacing: -0.02em;
+      font-size: 28px;
+      font-weight: 400;
+      letter-spacing: 0;
       color: #00ff41;
-      text-shadow: 0 0 30px rgba(0,255,65,0.2), 0 0 60px rgba(0,255,65,0.05);
+      text-shadow: 0 0 20px rgba(0,255,65,0.2);
+    }
+    .hero h1 .prompt {
+      color: #556655;
+      margin-right: 6px;
+    }
+    .hero h1 .captcha {
+      color: #f7931a;
+      text-shadow: 0 0 20px rgba(247,147,26,0.2);
     }
     .hero p {
       color: #556655;
@@ -325,7 +333,7 @@
 <body>
 
 <div class="hero">
-  <h1>BitCaptcha</h1>
+  <h1><span class="prompt">$</span> ./bit<span class="captcha">captcha</span></h1>
   <p>Drop-in widget that gates access behind small Bitcoin payments.<br>// Configure below and grab the embed code.</p>
 </div>
 
