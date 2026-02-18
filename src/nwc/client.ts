@@ -94,7 +94,7 @@ export class NwcClient {
    * This avoids the race condition where a response arrives before
    * the subscription is active.
    */
-  private async sendRequest(request: NwcRequest): Promise<NwcResponse> {
+  private async sendRequest(request: NwcRequest, timeout: number = DEFAULT_TIMEOUT): Promise<NwcResponse> {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       await this.connect();
     }
@@ -122,12 +122,12 @@ export class NwcClient {
     const subId = "bitcaptcha-" + event.id.slice(0, 8);
 
     return new Promise<NwcResponse>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        debug("REQUEST TIMEOUT after 30s — no response received for", request.method);
+      const timer = setTimeout(() => {
+        debug(`REQUEST TIMEOUT after ${timeout}ms — no response received for`, request.method);
         this.send(["CLOSE", subId]);
         ws.removeEventListener("message", onMessage);
         reject(new Error(`NWC request timeout: ${request.method}`));
-      }, DEFAULT_TIMEOUT);
+      }, timeout);
 
       let eoseReceived = false;
 
@@ -191,14 +191,14 @@ export class NwcClient {
             .then((decrypted) => {
               const response = JSON.parse(decrypted) as NwcResponse;
               debug("Response:", JSON.stringify(response));
-              clearTimeout(timeout);
+              clearTimeout(timer);
               this.send(["CLOSE", subId]);
               ws.removeEventListener("message", onMessage);
               resolve(response);
             })
             .catch((err) => {
               debug("Decrypt FAILED:", err);
-              clearTimeout(timeout);
+              clearTimeout(timer);
               this.send(["CLOSE", subId]);
               ws.removeEventListener("message", onMessage);
               reject(
@@ -252,11 +252,11 @@ export class NwcClient {
     return response.result as unknown as MakeInvoiceResult;
   }
 
-  async lookupInvoice(paymentHash: string): Promise<LookupInvoiceResult> {
+  async lookupInvoice(paymentHash: string, timeout?: number): Promise<LookupInvoiceResult> {
     const response = await this.sendRequest({
       method: "lookup_invoice",
       params: { payment_hash: paymentHash },
-    });
+    }, timeout);
 
     if (response.error) {
       throw new Error(
@@ -267,11 +267,11 @@ export class NwcClient {
     return response.result as unknown as LookupInvoiceResult;
   }
 
-  async listTransactions(since: number): Promise<ListTransactionsResult> {
+  async listTransactions(since: number, timeout?: number): Promise<ListTransactionsResult> {
     const response = await this.sendRequest({
       method: "list_transactions",
       params: { from: since, limit: 10, type: "incoming" },
-    });
+    }, timeout);
 
     if (response.error) {
       throw new Error(

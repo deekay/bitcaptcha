@@ -5,15 +5,17 @@ import { verifyPreimage, createVerificationToken } from "./payment/verify.js";
 import { Renderer } from "./ui/renderer.js";
 import type { WidgetConfig, VerificationToken } from "./types.js";
 
-const POLL_INTERVAL = 3000;
-const MAX_POLLS = 100; // 5 minutes at 3s intervals
+const POLL_INTERVAL = 5000;
+const POLL_TIMEOUT = 10_000;
+const MAX_POLLS = 60; // 5 minutes at 5s intervals
 
 export class BitCaptchaWidget {
   private config: WidgetConfig;
   private nwc: NwcClient;
   private stateMachine: PaymentStateMachine;
   private renderer: Renderer;
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private pollTimer: ReturnType<typeof setTimeout> | null = null;
+  private polling = false;
   private invoiceCreatedAt = 0;
 
   constructor(container: HTMLElement, config: WidgetConfig) {
@@ -79,20 +81,49 @@ export class BitCaptchaWidget {
   }
 
   /**
+   * Check if a lookup_invoice or transaction result indicates settlement.
+   * Accepts preimage, settled_at, or state field as proof.
+   */
+  private checkResult(
+    result: Record<string, unknown> | null | undefined,
+    paymentHash: string,
+  ): boolean {
+    if (!result) return false;
+
+    console.log("[BitCaptcha] checking result:", JSON.stringify(result));
+
+    // 1. Preimage (cryptographic proof)
+    const preimage = result.preimage as string | undefined;
+    if (preimage && preimage.length > 0 && !/^0+$/.test(preimage)) {
+      this.handlePaymentReceived(preimage, paymentHash);
+      return true;
+    }
+
+    // 2. settled_at timestamp (trust provider)
+    if (result.settled_at) {
+      this.handleSettledWithoutPreimage(paymentHash);
+      return true;
+    }
+
+    // 3. State field (some wallets use "settled" or "paid")
+    const state = (result.state as string || "").toLowerCase();
+    if (state === "settled" || state === "paid") {
+      this.handleSettledWithoutPreimage(paymentHash);
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Check for payment using all available NWC methods.
    * Tries lookup_invoice first, then list_transactions as fallback.
-   * Accepts preimage (cryptographic proof) or settled_at (trust provider).
    */
   private async checkPayment(paymentHash: string): Promise<boolean> {
     // 1. lookup_invoice
     try {
-      const result = await this.nwc.lookupInvoice(paymentHash);
-      if (result.preimage) {
-        this.handlePaymentReceived(result.preimage, paymentHash);
-        return true;
-      }
-      if (result.settled_at) {
-        this.handleSettledWithoutPreimage(paymentHash);
+      const result = await this.nwc.lookupInvoice(paymentHash, POLL_TIMEOUT);
+      if (this.checkResult(result as Record<string, unknown>, paymentHash)) {
         return true;
       }
     } catch (err) {
@@ -101,18 +132,13 @@ export class BitCaptchaWidget {
 
     // 2. list_transactions fallback
     try {
-      const txResult = await this.nwc.listTransactions(this.invoiceCreatedAt);
-      const match = txResult.transactions?.find(
-        (tx) => tx.payment_hash === paymentHash,
-      );
-      if (match) {
-        if (match.preimage) {
-          this.handlePaymentReceived(match.preimage, paymentHash);
-          return true;
-        }
-        if (match.settled_at) {
-          this.handleSettledWithoutPreimage(paymentHash);
-          return true;
+      const txResult = await this.nwc.listTransactions(this.invoiceCreatedAt, POLL_TIMEOUT);
+      const transactions = txResult.transactions || [];
+      for (const tx of transactions) {
+        if (tx.payment_hash === paymentHash) {
+          if (this.checkResult(tx as Record<string, unknown>, paymentHash)) {
+            return true;
+          }
         }
       }
     } catch {
@@ -122,11 +148,18 @@ export class BitCaptchaWidget {
     return false;
   }
 
+  /**
+   * Sequential polling — waits for each check to finish before scheduling the next.
+   * Prevents overlapping subscriptions that can overwhelm the relay.
+   */
   private startPolling(paymentHash: string): void {
     this.stopPolling();
+    this.polling = true;
     let pollCount = 0;
 
-    this.pollTimer = setInterval(async () => {
+    const poll = async () => {
+      if (!this.polling) return;
+
       pollCount++;
       if (pollCount > MAX_POLLS) {
         this.stopPolling();
@@ -136,16 +169,26 @@ export class BitCaptchaWidget {
         return;
       }
 
+      console.log(`[BitCaptcha] poll #${pollCount}`);
       const found = await this.checkPayment(paymentHash);
       if (found) {
         this.stopPolling();
+        return;
       }
-    }, POLL_INTERVAL);
+
+      // Schedule next poll only after this one completes
+      if (this.polling) {
+        this.pollTimer = setTimeout(poll, POLL_INTERVAL);
+      }
+    };
+
+    this.pollTimer = setTimeout(poll, POLL_INTERVAL);
   }
 
   private stopPolling(): void {
+    this.polling = false;
     if (this.pollTimer) {
-      clearInterval(this.pollTimer);
+      clearTimeout(this.pollTimer);
       this.pollTimer = null;
     }
   }
