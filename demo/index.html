@@ -474,7 +474,7 @@
   function updateEmbedCode() {
     var attrs = '';
     attrs += '\n     data-wallet="YOUR_WALLET_CONNECTION_STRING"';
-    if (cfg.amount !== 100) attrs += '\n     data-amount="' + cfg.amount + '"';
+    attrs += '\n     data-amount="' + cfg.amount + '"';
     if (cfg.description !== 'Verification payment') attrs += '\n     data-description="' + cfg.description + '"';
     if (cfg.theme !== 'auto') attrs += '\n     data-theme="' + cfg.theme + '"';
     if (cfg.buttonText !== 'Verify with Bitcoin') attrs += '\n     data-button-text="' + cfg.buttonText + '"';
