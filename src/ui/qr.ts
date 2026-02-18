@@ -13,7 +13,7 @@ export function renderQrCode(
 
   QrCreator.render(
     {
-      text: `lightning:${invoice}`,
+      text: `bitcoin:?lightning=${invoice}`,
       radius: 0.4,
       ecLevel: "L",
       fill: "#000000",
