@@ -40,7 +40,9 @@ jobs:
       - run: |
           mkdir -p _site
           cp dist/widget.js _site/widget.js
-          sed 's|../dist/widget.js|./widget.js|' demo/index.html > _site/index.html
+          for f in demo/*.html; do
+            sed 's|../dist/widget.js|./widget.js|' "$f" > "_site/$(basename "$f")"
+          done
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
