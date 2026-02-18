@@ -138,24 +138,20 @@
     /* --- Gated content area --- */
     .gated-wrapper {
       position: relative;
-      max-height: 300px;
-      overflow: hidden;
-      transition: max-height 0.8s ease;
-    }
-    .gated-wrapper.unlocked {
-      max-height: 2000px;
     }
 
     .gated-content {
       font-size: 14px;
       line-height: 1.9;
       color: #889988;
-      transition: filter 0.8s ease, opacity 0.8s ease;
+      transition: filter 0.8s ease, opacity 0.8s ease, max-height 0.8s ease;
     }
     .gated-content.locked {
       filter: blur(8px);
       user-select: none;
       pointer-events: none;
+      max-height: 200px;
+      overflow: hidden;
     }
     .gated-content p { margin-bottom: 16px; }
     .gated-content h2 {
@@ -183,24 +179,18 @@
 
     /* --- Overlay gate --- */
     .gate-overlay {
-      position: absolute;
-      top: 0;
-      left: -28px;
-      right: -28px;
-      bottom: 0;
-      background: linear-gradient(to bottom, rgba(10,10,10,0) 0%, rgba(10,10,10,0.9) 15%, rgba(10,10,10,0.97) 30%);
-      backdrop-filter: blur(2px);
-      -webkit-backdrop-filter: blur(2px);
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding-top: 40px;
-      transition: opacity 0.6s ease;
-      z-index: 10;
+      padding: 32px 0;
+      transition: opacity 0.6s ease, max-height 0.6s ease;
     }
     .gate-overlay.hidden {
       opacity: 0;
+      max-height: 0;
+      overflow: hidden;
       pointer-events: none;
+      padding: 0;
     }
 
     .gate-label {
@@ -376,7 +366,6 @@
   // Callback: unlock content on successful payment
   window.onBitCaptchaVerified = function(token) {
     document.getElementById('gated-content').classList.remove('locked');
-    document.querySelector('.gated-wrapper').classList.add('unlocked');
     document.getElementById('gate-overlay').classList.add('hidden');
     document.getElementById('success-banner').classList.add('visible');
   };
