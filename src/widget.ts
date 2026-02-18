@@ -7,6 +7,7 @@ import type { WidgetConfig, VerificationToken } from "./types.js";
 
 const POLL_INTERVAL = 3000;
 const MAX_POLLS = 100; // 5 minutes at 3s intervals
+const LIST_TX_FALLBACK_AFTER = 3; // switch to list_transactions after N lookup failures
 
 export class BitCaptchaWidget {
   private config: WidgetConfig;
@@ -83,6 +84,8 @@ export class BitCaptchaWidget {
   private startPolling(paymentHash: string): void {
     this.stopPolling();
     let pollCount = 0;
+    let useListTx = false;
+    const invoiceCreatedAt = Math.floor(Date.now() / 1000) - 10;
 
     this.pollTimer = setInterval(async () => {
       pollCount++;
@@ -95,14 +98,33 @@ export class BitCaptchaWidget {
       }
 
       try {
-        const result = await this.nwc.lookupInvoice(paymentHash);
-        console.log("[BitCaptcha] lookup_invoice result:", JSON.stringify(result));
-        if (result.preimage) {
-          this.stopPolling();
-          this.handlePaymentReceived(result.preimage, paymentHash);
+        // Try lookup_invoice first, switch to list_transactions if it never returns preimage
+        if (!useListTx) {
+          const result = await this.nwc.lookupInvoice(paymentHash);
+          if (result.preimage) {
+            this.stopPolling();
+            this.handlePaymentReceived(result.preimage, paymentHash);
+            return;
+          }
+          if (pollCount >= LIST_TX_FALLBACK_AFTER) {
+            console.log("[BitCaptcha] lookup_invoice not returning preimage, trying list_transactions");
+            useListTx = true;
+          }
+        }
+
+        if (useListTx) {
+          const result = await this.nwc.listTransactions(invoiceCreatedAt);
+          const match = result.transactions?.find(
+            (tx) => tx.payment_hash === paymentHash && tx.preimage,
+          );
+          if (match?.preimage) {
+            this.stopPolling();
+            this.handlePaymentReceived(match.preimage, paymentHash);
+            return;
+          }
         }
       } catch (err) {
-        console.warn("[BitCaptcha] lookup_invoice poll failed:", err instanceof Error ? err.message : err);
+        console.warn("[BitCaptcha] poll failed:", err instanceof Error ? err.message : err);
       }
     }, POLL_INTERVAL);
   }

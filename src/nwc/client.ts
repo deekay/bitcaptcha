@@ -14,6 +14,7 @@ import type {
   NwcResponse,
   MakeInvoiceResult,
   LookupInvoiceResult,
+  ListTransactionsResult,
 } from "./types.js";
 
 const NWC_REQUEST_KIND = 23194;
@@ -264,6 +265,21 @@ export class NwcClient {
     }
 
     return response.result as unknown as LookupInvoiceResult;
+  }
+
+  async listTransactions(since: number): Promise<ListTransactionsResult> {
+    const response = await this.sendRequest({
+      method: "list_transactions",
+      params: { from: since, limit: 10, type: "incoming" },
+    });
+
+    if (response.error) {
+      throw new Error(
+        `list_transactions failed: ${response.error.message} (${response.error.code})`,
+      );
+    }
+
+    return response.result as unknown as ListTransactionsResult;
   }
 
   disconnect(): void {

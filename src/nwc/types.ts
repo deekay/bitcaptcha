@@ -26,7 +26,7 @@ export interface UnsignedEvent {
 }
 
 /** NWC request methods we use */
-export type NwcMethod = "make_invoice" | "lookup_invoice";
+export type NwcMethod = "make_invoice" | "lookup_invoice" | "list_transactions";
 
 /** NWC request wrapper */
 export interface NwcRequest {
@@ -68,4 +68,22 @@ export interface LookupInvoiceResult {
   created_at: number;
   expires_at: number;
   settled_at?: number;
+}
+
+/** Single transaction from list_transactions */
+export interface TransactionResult {
+  type: string;
+  invoice?: string;
+  description?: string;
+  preimage?: string;
+  payment_hash?: string;
+  amount?: number;
+  fees_paid?: number;
+  created_at?: number;
+  settled_at?: number;
+}
+
+/** list_transactions result */
+export interface ListTransactionsResult {
+  transactions: TransactionResult[];
 }
