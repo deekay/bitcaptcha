@@ -72,7 +72,7 @@ export class BitCaptchaWidget {
         });
       }
 
-      this.startPolling(invoice.payment_hash);
+      this.startPolling(invoice.payment_hash, invoice.invoice);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to create invoice";
@@ -119,7 +119,7 @@ export class BitCaptchaWidget {
    * Check for payment using all available NWC methods.
    * Tries lookup_invoice first, then list_transactions as fallback.
    */
-  private async checkPayment(paymentHash: string): Promise<boolean> {
+  private async checkPayment(paymentHash: string, invoice: string): Promise<boolean> {
     // 1. lookup_invoice
     try {
       const result = await this.nwc.lookupInvoice(paymentHash, POLL_TIMEOUT);
@@ -131,11 +131,12 @@ export class BitCaptchaWidget {
     }
 
     // 2. list_transactions fallback
+    // Match by payment_hash OR invoice (some wallets return null payment_hash)
     try {
       const txResult = await this.nwc.listTransactions(this.invoiceCreatedAt, POLL_TIMEOUT);
       const transactions = txResult.transactions || [];
       for (const tx of transactions) {
-        if (tx.payment_hash === paymentHash) {
+        if (tx.payment_hash === paymentHash || tx.invoice === invoice) {
           if (this.checkResult(tx as Record<string, unknown>, paymentHash)) {
             return true;
           }
@@ -152,7 +153,7 @@ export class BitCaptchaWidget {
    * Sequential polling — waits for each check to finish before scheduling the next.
    * Prevents overlapping subscriptions that can overwhelm the relay.
    */
-  private startPolling(paymentHash: string): void {
+  private startPolling(paymentHash: string, invoice: string): void {
     this.stopPolling();
     this.polling = true;
     let pollCount = 0;
@@ -170,7 +171,7 @@ export class BitCaptchaWidget {
       }
 
       console.log(`[BitCaptcha] poll #${pollCount}`);
-      const found = await this.checkPayment(paymentHash);
+      const found = await this.checkPayment(paymentHash, invoice);
       if (found) {
         this.stopPolling();
         return;
