@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BitCaptcha Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, monospace;
+      background: #0a0a0a;
+      color: #b0b0b0;
+      min-height: 100vh;
+    }
+
+    /* CRT vignette */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.5) 100%);
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    /* Scanlines */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 2px,
+        rgba(0,0,0,0.15) 2px,
+        rgba(0,0,0,0.15) 4px
+      );
+      pointer-events: none;
+      z-index: 1001;
+    }
+
+    .back-link {
+      position: fixed;
+      top: 16px;
+      left: 20px;
+      color: #555;
+      font-size: 13px;
+      text-decoration: none;
+      z-index: 100;
+      transition: color 0.15s;
+    }
+    .back-link:hover { color: #00ff41; }
+
+    .page {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 60px 24px 80px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* --- Terminal window chrome --- */
+    .terminal-frame {
+      border: 1px solid #1a3a1a;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #0d0d0d;
+      box-shadow: 0 0 40px rgba(0,255,65,0.04), inset 0 0 80px rgba(0,0,0,0.3);
+    }
+    .terminal-titlebar {
+      background: #111;
+      border-bottom: 1px solid #1a3a1a;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .terminal-dots {
+      display: flex;
+      gap: 6px;
+    }
+    .terminal-dots span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #333;
+      border: 1px solid #2a2a2a;
+    }
+    .terminal-titlebar-text {
+      flex: 1;
+      text-align: center;
+      font-size: 11px;
+      color: #444;
+      letter-spacing: 0.5px;
+    }
+    .terminal-body {
+      padding: 28px 28px 32px;
+    }
+
+    /* --- Article header --- */
+    .article-header {
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #1a3a1a;
+    }
+    .article-meta {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: #00ff41;
+      margin-bottom: 14px;
+      text-shadow: 0 0 8px rgba(0,255,65,0.3);
+    }
+    .article-header h1 {
+      font-family: inherit;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      line-height: 1.3;
+      color: #00ff41;
+      text-shadow: 0 0 20px rgba(0,255,65,0.15);
+      margin-bottom: 10px;
+    }
+    .article-header .subtitle {
+      font-size: 14px;
+      color: #556655;
+      line-height: 1.6;
+    }
+
+    .teaser {
+      font-size: 14px;
+      line-height: 1.9;
+      color: #889988;
+      margin-bottom: 28px;
+    }
+
+    /* --- Gated content area --- */
+    .gated-wrapper {
+      position: relative;
+    }
+
+    .gated-content {
+      font-size: 14px;
+      line-height: 1.9;
+      color: #889988;
+      transition: filter 0.8s ease, opacity 0.8s ease;
+    }
+    .gated-content.locked {
+      filter: blur(8px);
+      user-select: none;
+      pointer-events: none;
+    }
+    .gated-content p { margin-bottom: 16px; }
+    .gated-content h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #00ff41;
+      margin: 28px 0 10px;
+      text-shadow: 0 0 12px rgba(0,255,65,0.15);
+    }
+    .gated-content h2::before {
+      content: '## ';
+      color: #335533;
+    }
+    .gated-content blockquote {
+      border-left: 2px solid #00ff41;
+      padding-left: 16px;
+      margin: 20px 0;
+      color: #667766;
+      font-style: normal;
+    }
+    .gated-content blockquote::before {
+      content: '> ';
+      color: #335533;
+    }
+
+    /* --- Overlay gate --- */
+    .gate-overlay {
+      position: absolute;
+      top: 0;
+      left: -28px;
+      right: -28px;
+      bottom: 0;
+      background: linear-gradient(to bottom, rgba(10,10,10,0) 0%, rgba(10,10,10,0.9) 15%, rgba(10,10,10,0.97) 30%);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 40px;
+      transition: opacity 0.6s ease;
+      z-index: 10;
+    }
+    .gate-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .gate-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #ff3333;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 24px;
+      text-shadow: 0 0 10px rgba(255,51,51,0.3);
+      padding: 6px 16px;
+      border: 1px solid rgba(255,51,51,0.25);
+      border-radius: 3px;
+      background: rgba(255,51,51,0.05);
+    }
+
+    .gate-widget {
+      display: flex;
+      justify-content: center;
+    }
+
+    /* --- Success banner --- */
+    .success-banner {
+      background: rgba(0,255,65,0.05);
+      border: 1px solid rgba(0,255,65,0.2);
+      border-radius: 4px;
+      padding: 14px 18px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    .success-banner.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .success-icon {
+      font-size: 14px;
+      color: #00ff41;
+      flex-shrink: 0;
+      text-shadow: 0 0 8px rgba(0,255,65,0.4);
+    }
+    .success-text {
+      font-size: 13px;
+      color: #00ff41;
+      text-shadow: 0 0 6px rgba(0,255,65,0.2);
+    }
+    .success-text span {
+      display: block;
+      font-size: 11px;
+      color: #556655;
+      margin-top: 2px;
+      text-shadow: none;
+    }
+
+    /* Blink cursor on the meta tag */
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+    .cursor {
+      display: inline-block;
+      width: 7px;
+      height: 14px;
+      background: #00ff41;
+      margin-left: 4px;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+      box-shadow: 0 0 6px rgba(0,255,65,0.4);
+    }
+  </style>
+</head>
+<body>
+
+<a href="index.html" class="back-link">$ cd ../configurator</a>
+
+<div class="page">
+  <div class="terminal-frame">
+    <div class="terminal-titlebar">
+      <div class="terminal-dots"><span></span><span></span><span></span></div>
+      <div class="terminal-titlebar-text">bitcaptcha-demo &mdash; classified content</div>
+      <div style="width: 42px;"></div>
+    </div>
+    <div class="terminal-body">
+
+      <div class="article-header">
+        <div class="article-meta">[DECRYPTED] Exclusive Report<span class="cursor"></span></div>
+        <h1>The Lightning Network: A New Era for Micropayments</h1>
+        <p class="subtitle">// How instant Bitcoin transactions are reshaping the economics of digital content, one satoshi at a time.</p>
+      </div>
+
+      <div class="teaser">
+        <p>The internet's original sin was the failure to build payments into the protocol. What followed was an ad-driven economy that trades user attention and privacy for access to content. But a quiet revolution is underway. The Lightning Network, Bitcoin's layer-2 scaling solution, is finally making micropayments practical &mdash; and it's about to change everything.</p>
+      </div>
+
+      <div class="success-banner" id="success-banner">
+        <div class="success-icon">[OK]</div>
+        <div class="success-text">
+          ACCESS GRANTED &mdash; content decrypted
+          <span>// payment verified on Lightning Network</span>
+        </div>
+      </div>
+
+      <div class="gated-wrapper">
+        <div class="gated-content locked" id="gated-content">
+          <h2>Why Micropayments Failed Before</h2>
+          <p>Credit card transaction fees make anything below $1 economically absurd. Visa charges a minimum of 21 cents per transaction in the US alone. When your article costs a nickel to read, traditional payment rails eat the entire revenue &mdash; and then some.</p>
+          <p>Previous attempts at micropayments &mdash; from Digicash in the 1990s to Blendle in the 2010s &mdash; all stumbled on the same problem: the friction of payment exceeded the value of the content. Users wouldn't set up yet another account, enter yet another credit card, for a 25-cent article.</p>
+
+          <h2>Enter the Lightning Network</h2>
+          <p>Lightning changes the equation in three fundamental ways. First, transactions settle in milliseconds, not days. Second, fees are measured in fractions of a cent, not tens of cents. Third, the network is programmable &mdash; payments can be triggered by APIs, embedded in widgets, and verified cryptographically without any middlemen.</p>
+
+          <blockquote>"We're not just reducing transaction costs. We're creating an entirely new design space for how value moves on the internet." &mdash; Elizabeth Stark, Lightning Labs</blockquote>
+
+          <p>The implications are profound. A blog post can cost 100 satoshis (roughly $0.03) to read. A musician can charge 10 sats per stream. A developer can monetize API calls at the per-request level. None of this was economically viable before Lightning.</p>
+
+          <h2>The Widget Revolution</h2>
+          <p>What makes this moment different from previous micropayment attempts is the developer experience. Modern Lightning tools abstract away the complexity of node management, channel liquidity, and invoice handling. A simple JavaScript widget can gate content behind a paywall with just a few lines of code.</p>
+          <p>The user experience is equally streamlined. Wallets like Phoenix and Breez handle channel management automatically. NWC (Nostr Wallet Connect) enables one-click payments from any compatible wallet. The days of copying 200-character invoices are numbered.</p>
+
+          <h2>What Comes Next</h2>
+          <p>We're still in the early chapters of this story. As Lightning wallets become more ubiquitous and payment widgets become easier to integrate, expect to see entirely new business models emerge &mdash; ones that weren't possible when the minimum viable transaction was a dollar.</p>
+          <p>The question is no longer whether micropayments will work. It's how quickly creators and developers will adopt the tools that make them effortless.</p>
+        </div>
+
+        <div class="gate-overlay" id="gate-overlay">
+          <div class="gate-label">[ACCESS DENIED] Authentication required</div>
+          <div class="gate-widget" id="gate-widget">
+            <div id="bitcaptcha"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="../dist/widget.js"></script>
+<script>
+(function() {
+  // Read config from URL params
+  var params = new URLSearchParams(window.location.search);
+  var wallet = params.get('wallet') || '';
+  var amount = params.get('amount') || '100';
+  var theme = params.get('theme') || 'terminal';
+  var buttonText = params.get('buttonText') || 'Verify with Bitcoin';
+  var size = params.get('size') || 'normal';
+  var description = params.get('description') || 'Verification payment';
+
+  // Set data attributes on the auto-init element
+  var el = document.getElementById('bitcaptcha');
+  el.setAttribute('data-wallet', wallet);
+  el.setAttribute('data-amount', amount);
+  el.setAttribute('data-theme', theme);
+  el.setAttribute('data-button-text', buttonText);
+  el.setAttribute('data-size', size);
+  el.setAttribute('data-description', description);
+  el.setAttribute('data-callback', 'onBitCaptchaVerified');
+
+  // Callback: unlock content on successful payment
+  window.onBitCaptchaVerified = function(token) {
+    document.getElementById('gated-content').classList.remove('locked');
+    document.getElementById('gate-overlay').classList.add('hidden');
+    document.getElementById('success-banner').classList.add('visible');
+  };
+})();
+</script>
+</body>
+</html>

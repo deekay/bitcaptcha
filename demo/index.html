@@ -225,33 +225,33 @@
       color: #e0e0e8;
     }
 
-    /* --- Try it live --- */
-    .try-live {
+    /* --- Launch demo --- */
+    .launch-demo {
       grid-column: 1 / -1;
     }
-    .try-live p {
+    .launch-demo p {
       font-size: 13px;
       color: #6a6a7e;
       margin-bottom: 12px;
     }
-    .try-live a {
+    .launch-demo a {
       color: #ff2d95;
       text-decoration: none;
     }
-    .try-live a:hover { text-decoration: underline; }
-    .try-live-inner {
+    .launch-demo a:hover { text-decoration: underline; }
+    .launch-demo-inner {
       display: grid;
       grid-template-columns: 1fr auto;
       gap: 16px;
       align-items: start;
     }
     @media (max-width: 700px) {
-      .try-live-inner { grid-template-columns: 1fr; }
+      .launch-demo-inner { grid-template-columns: 1fr; }
     }
-    .try-live .field textarea {
+    .launch-demo .field textarea {
       min-height: 44px;
     }
-    .try-btn {
+    .launch-btn {
       padding: 8px 20px;
       background: linear-gradient(135deg, #ff2d95, #c41e6a);
       color: white;
@@ -265,28 +265,10 @@
       margin-top: 22px;
       transition: opacity 0.15s, box-shadow 0.15s;
     }
-    .try-btn:hover {
+    .launch-btn:hover {
       box-shadow: 0 0 20px rgba(255, 45, 149, 0.3);
     }
-    .try-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
-    #live-widget-area {
-      margin-top: 16px;
-      display: flex;
-      justify-content: center;
-    }
-    #live-log {
-      font-family: monospace;
-      font-size: 12px;
-      background: rgba(0,0,0,0.4);
-      color: #22c55e;
-      padding: 10px 14px;
-      border-radius: 6px;
-      margin-top: 12px;
-      min-height: 32px;
-      white-space: pre-wrap;
-      display: none;
-      border: 1px solid rgba(255,255,255,0.05);
-    }
+    .launch-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
   </style>
 </head>
 <body>
@@ -368,23 +350,21 @@
     </div>
   </div>
 
-  <!-- Try it live -->
-  <div class="panel try-live">
-    <h2>Try It Live</h2>
+  <!-- Launch demo -->
+  <div class="panel launch-demo">
+    <h2>Launch Demo</h2>
     <p>
-      Paste an NWC connection string to test a real payment. Get one from
+      Paste an NWC connection string to try a real gated-content experience. Get one from
       <a href="https://albyhub.com" target="_blank">Alby Hub</a> or
       <a href="https://lexe.app" target="_blank">Lexe</a>.
     </p>
-    <div class="try-live-inner">
+    <div class="launch-demo-inner">
       <div class="field" style="margin-bottom: 0;">
         <label for="wallet-input">Wallet connection string</label>
         <textarea id="wallet-input" rows="2" placeholder="nostr+walletconnect://..."></textarea>
       </div>
-      <button class="try-btn" id="try-btn" disabled>Activate</button>
+      <button class="launch-btn" id="launch-btn" disabled>Launch Demo</button>
     </div>
-    <div id="live-widget-area"></div>
-    <div id="live-log"></div>
   </div>
 
 </div>
@@ -409,9 +389,7 @@
   const embedCode = document.getElementById('embed-code');
   const copyBtn = document.getElementById('copy-embed');
   const walletInput = document.getElementById('wallet-input');
-  const tryBtn = document.getElementById('try-btn');
-  const liveArea = document.getElementById('live-widget-area');
-  const liveLog = document.getElementById('live-log');
+  const launchBtn = document.getElementById('launch-btn');
 
   // --- Theme preview styles ---
   var themePreviewStyles = {
@@ -542,41 +520,21 @@
     });
   });
 
-  // --- Try it live ---
+  // --- Launch demo ---
   walletInput.addEventListener('input', function() {
-    tryBtn.disabled = !walletInput.value.trim().startsWith('nostr+walletconnect://');
+    launchBtn.disabled = !walletInput.value.trim().startsWith('nostr+walletconnect://');
   });
 
-  var liveWidget = null;
-  tryBtn.addEventListener('click', function() {
-    if (liveWidget) { liveWidget.destroy(); }
-    liveArea.innerHTML = '';
-    liveLog.style.display = 'block';
-    liveLog.textContent = 'Initializing...';
-
-    var el = document.createElement('div');
-    liveArea.appendChild(el);
-
-    try {
-      liveWidget = new BitCaptcha.BitCaptchaWidget(el, {
-        wallet: walletInput.value.trim(),
-        amount: cfg.amount,
-        description: cfg.description,
-        theme: cfg.theme,
-        buttonText: cfg.buttonText,
-        size: cfg.size,
-        callback: 'onBitCaptchaVerified',
-      });
-      liveLog.textContent = 'Widget ready. Click the button above to test a real payment.';
-    } catch(err) {
-      liveLog.textContent = 'Error: ' + err.message;
-    }
+  launchBtn.addEventListener('click', function() {
+    var params = new URLSearchParams();
+    params.set('wallet', walletInput.value.trim());
+    params.set('amount', String(cfg.amount));
+    params.set('theme', cfg.theme);
+    params.set('buttonText', cfg.buttonText);
+    params.set('size', cfg.size);
+    params.set('description', cfg.description);
+    window.open('trial.html?' + params.toString(), '_blank');
   });
-
-  // Live callback
-  window.onBitCaptchaVerified = function(token) {
-    liveLog.textContent = 'Verified!\n' + JSON.stringify(token, null, 2);
-  };
 
   // --- Init ---
   rebuildPreview();
