@@ -312,6 +312,14 @@
       box-shadow: 0 0 20px rgba(0,255,65,0.3);
     }
     .launch-btn:disabled { opacity: 0.3; cursor: not-allowed; box-shadow: none; }
+
+    .version {
+      text-align: center;
+      padding: 24px 20px 32px;
+      font-size: 10px;
+      color: #335533;
+      letter-spacing: 0.5px;
+    }
   </style>
 </head>
 <body>
@@ -427,6 +435,8 @@
   </div>
 
 </div>
+
+<div class="version">__GIT_SHA__</div>
 
 <script src="../dist/widget.js"></script>
 <script>

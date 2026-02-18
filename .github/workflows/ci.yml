@@ -38,10 +38,11 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: |
+          SHA=$(git rev-parse --short HEAD)
           mkdir -p _site
           cp dist/widget.js _site/widget.js
           for f in demo/*.html; do
-            sed 's|../dist/widget.js|./widget.js|' "$f" > "_site/$(basename "$f")"
+            sed -e 's|../dist/widget.js|./widget.js|' -e "s|__GIT_SHA__|${SHA}|g" "$f" > "_site/$(basename "$f")"
           done
       - uses: actions/upload-pages-artifact@v3
         with:
