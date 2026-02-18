@@ -11,7 +11,7 @@ export interface RendererOptions {
   size: "normal" | "compact";
   onVerifyClick: () => void;
   onRetryClick: () => void;
-  onManualPreimage: (preimage: string) => boolean;
+  onConfirmPaid: () => void;
 }
 
 export class Renderer {
@@ -92,6 +92,21 @@ export class Renderer {
   }
 
   private renderAwaitingPayment(data: StateData): void {
+    let bottomSection = `<div class="bc-status" role="status">${spinnerIcon} Waiting for payment...</div>`;
+
+    if (data.confirmChecking) {
+      bottomSection = `<div class="bc-status" role="status">${spinnerIcon} Checking payment...</div>`;
+    } else if (data.showConfirmPaid) {
+      const failMsg = data.confirmFailed
+        ? `<div class="bc-confirm-hint">Your wallet may not support auto-verification. Payment is still processing — try again in a moment.</div>`
+        : "";
+      bottomSection = `
+        <div class="bc-status" role="status">${spinnerIcon} Waiting for payment...</div>
+        ${failMsg}
+        <button class="bc-confirm-btn" data-action="confirm-paid">I've paid</button>
+      `;
+    }
+
     this.container.innerHTML = `
       <div class="bc-container">
         <div class="bc-amount">\u20BF${this.options.amount}</div>
@@ -102,18 +117,7 @@ export class Renderer {
             Copy Invoice
           </button>
         </div>
-        <div class="bc-status" role="status">${spinnerIcon} Waiting for payment...</div>
-        <details class="bc-manual"${data.showManualEntry ? " open" : ""}>
-          <summary class="bc-manual-toggle">Already paid?</summary>
-          <div class="bc-manual-body">
-            <p class="bc-manual-hint">Paste the payment preimage from your wallet:</p>
-            <div class="bc-manual-row">
-              <input type="text" class="bc-manual-input" data-preimage placeholder="Preimage (hex)" spellcheck="false" autocomplete="off" />
-              <button class="bc-manual-submit" data-action="manual-verify">Verify</button>
-            </div>
-            <div class="bc-manual-error" data-manual-error></div>
-          </div>
-        </details>
+        ${bottomSection}
       </div>
     `;
 
@@ -135,26 +139,7 @@ export class Renderer {
       });
     }
 
-    this.bindAction("manual-verify", () => {
-      const input = this.shadow.querySelector("[data-preimage]") as HTMLInputElement;
-      const errorEl = this.shadow.querySelector("[data-manual-error]") as HTMLElement;
-      if (!input || !errorEl) return;
-
-      const preimage = input.value.trim();
-      if (!preimage) {
-        errorEl.textContent = "Please enter a preimage";
-        return;
-      }
-      if (!/^[0-9a-fA-F]{64}$/.test(preimage)) {
-        errorEl.textContent = "Invalid format — expected 64-character hex string";
-        return;
-      }
-      errorEl.textContent = "";
-      const valid = this.options.onManualPreimage(preimage);
-      if (!valid) {
-        errorEl.textContent = "Preimage does not match this invoice";
-      }
-    });
+    this.bindAction("confirm-paid", this.options.onConfirmPaid);
   }
 
   private renderWeblnPrompt(): void {
