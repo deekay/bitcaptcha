@@ -247,33 +247,6 @@ export const styles = `
   outline-offset: 2px;
 }
 
-.bc-confirm-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  background: transparent;
-  color: var(--bc-text-secondary);
-  border: 1px solid var(--bc-border);
-  border-radius: var(--bc-radius);
-  padding: 6px 16px;
-  font-size: 12px;
-  font-family: var(--bc-font);
-  cursor: pointer;
-  margin-top: 8px;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-.bc-confirm-btn:hover {
-  color: var(--bc-text);
-  border-color: var(--bc-text-secondary);
-}
-.bc-confirm-hint {
-  font-size: 11px;
-  color: var(--bc-text-secondary);
-  margin-top: 6px;
-  line-height: 1.4;
-}
-
 @keyframes bc-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }

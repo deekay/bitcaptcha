@@ -26,9 +26,6 @@ export interface StateData {
   preimage?: string;
   error?: string;
   amount?: number;
-  showConfirmPaid?: boolean;
-  confirmChecking?: boolean;
-  confirmFailed?: boolean;
 }
 
 export class PaymentStateMachine {

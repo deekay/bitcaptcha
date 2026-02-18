@@ -11,7 +11,6 @@ export interface RendererOptions {
   size: "normal" | "compact";
   onVerifyClick: () => void;
   onRetryClick: () => void;
-  onConfirmPaid: () => void;
 }
 
 export class Renderer {
@@ -23,12 +22,10 @@ export class Renderer {
     this.options = options;
     this.shadow = host.attachShadow({ mode: "closed" });
 
-    // Apply theme classes to the host (via the shadow root's host)
     const style = document.createElement("style");
     style.textContent = styles;
     this.shadow.appendChild(style);
 
-    // Set theme class
     if (options.theme !== "light") {
       (this.shadow as any).host.classList.add(`bc-theme-${options.theme}`);
     }
@@ -92,21 +89,6 @@ export class Renderer {
   }
 
   private renderAwaitingPayment(data: StateData): void {
-    let bottomSection = `<div class="bc-status" role="status">${spinnerIcon} Waiting for payment...</div>`;
-
-    if (data.confirmChecking) {
-      bottomSection = `<div class="bc-status" role="status">${spinnerIcon} Checking payment...</div>`;
-    } else if (data.showConfirmPaid) {
-      const failMsg = data.confirmFailed
-        ? `<div class="bc-confirm-hint">Your wallet may not support auto-verification. Payment is still processing — try again in a moment.</div>`
-        : "";
-      bottomSection = `
-        <div class="bc-status" role="status">${spinnerIcon} Waiting for payment...</div>
-        ${failMsg}
-        <button class="bc-confirm-btn" data-action="confirm-paid">I've paid</button>
-      `;
-    }
-
     this.container.innerHTML = `
       <div class="bc-container">
         <div class="bc-amount">\u20BF${this.options.amount}</div>
@@ -117,7 +99,7 @@ export class Renderer {
             Copy Invoice
           </button>
         </div>
-        ${bottomSection}
+        <div class="bc-status" role="status">${spinnerIcon} Waiting for payment...</div>
       </div>
     `;
 
@@ -138,8 +120,6 @@ export class Renderer {
         }
       });
     }
-
-    this.bindAction("confirm-paid", this.options.onConfirmPaid);
   }
 
   private renderWeblnPrompt(): void {

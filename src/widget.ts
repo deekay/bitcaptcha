@@ -7,7 +7,6 @@ import type { WidgetConfig, VerificationToken } from "./types.js";
 
 const POLL_INTERVAL = 3000;
 const MAX_POLLS = 100; // 5 minutes at 3s intervals
-const LIST_TX_FALLBACK_AFTER = 3;
 
 export class BitCaptchaWidget {
   private config: WidgetConfig;
@@ -29,7 +28,6 @@ export class BitCaptchaWidget {
       size: config.size,
       onVerifyClick: () => this.startPayment(),
       onRetryClick: () => this.retry(),
-      onConfirmPaid: () => this.confirmPaid(),
     });
 
     this.stateMachine.onStateChange((state, data) => {
@@ -41,10 +39,8 @@ export class BitCaptchaWidget {
     try {
       this.stateMachine.transition("invoicing");
 
-      // Lazy connect to NWC relay
       await this.nwc.connect();
 
-      // Create invoice
       const invoice = await this.nwc.makeInvoice(
         this.config.amount,
         this.config.description,
@@ -68,14 +64,12 @@ export class BitCaptchaWidget {
           return;
         }
 
-        // WebLN failed/rejected — fall back to QR display
         this.stateMachine.transition("awaiting_payment", {
           invoice: invoice.invoice,
           paymentHash: invoice.payment_hash,
         });
       }
 
-      // Start polling for payment
       this.startPolling(invoice.payment_hash);
     } catch (err) {
       const message =
@@ -85,11 +79,12 @@ export class BitCaptchaWidget {
   }
 
   /**
-   * Check for payment settlement using all available NWC methods.
-   * Returns true if payment was detected and handled.
+   * Check for payment using all available NWC methods.
+   * Tries lookup_invoice first, then list_transactions as fallback.
+   * Accepts preimage (cryptographic proof) or settled_at (trust provider).
    */
   private async checkPayment(paymentHash: string): Promise<boolean> {
-    // 1. Try lookup_invoice — check preimage OR settled_at
+    // 1. lookup_invoice
     try {
       const result = await this.nwc.lookupInvoice(paymentHash);
       if (result.preimage) {
@@ -104,7 +99,7 @@ export class BitCaptchaWidget {
       console.warn("[BitCaptcha] lookup_invoice failed:", err instanceof Error ? err.message : err);
     }
 
-    // 2. Try list_transactions as fallback
+    // 2. list_transactions fallback
     try {
       const txResult = await this.nwc.listTransactions(this.invoiceCreatedAt);
       const match = txResult.transactions?.find(
@@ -121,7 +116,7 @@ export class BitCaptchaWidget {
         }
       }
     } catch {
-      // list_transactions not supported — that's OK
+      // list_transactions not supported
     }
 
     return false;
@@ -141,48 +136,11 @@ export class BitCaptchaWidget {
         return;
       }
 
-      // After several failed polls, show "I've paid" button
-      if (pollCount === LIST_TX_FALLBACK_AFTER + 2) {
-        this.stateMachine.transition("awaiting_payment", {
-          showConfirmPaid: true,
-        });
-      }
-
       const found = await this.checkPayment(paymentHash);
       if (found) {
         this.stopPolling();
       }
     }, POLL_INTERVAL);
-  }
-
-  /**
-   * User clicked "I've paid" — do aggressive retry with short intervals.
-   */
-  private async confirmPaid(): Promise<void> {
-    const paymentHash = this.stateMachine.data.paymentHash;
-    if (!paymentHash) return;
-
-    this.stateMachine.transition("awaiting_payment", {
-      showConfirmPaid: false,
-      confirmChecking: true,
-    });
-
-    // Try 5 rapid checks over ~15 seconds
-    for (let i = 0; i < 5; i++) {
-      const found = await this.checkPayment(paymentHash);
-      if (found) {
-        this.stopPolling();
-        return;
-      }
-      if (i < 4) await new Promise((r) => setTimeout(r, 3000));
-    }
-
-    // Still not detected — show message and resume normal polling
-    this.stateMachine.transition("awaiting_payment", {
-      showConfirmPaid: true,
-      confirmChecking: false,
-      confirmFailed: true,
-    });
   }
 
   private stopPolling(): void {
@@ -206,15 +164,14 @@ export class BitCaptchaWidget {
     const token = createVerificationToken(preimage, paymentHash);
     this.stateMachine.transition("verified", { preimage });
 
-    // Fire callback if configured
     if (this.config.callback && token) {
       this.fireCallback(token);
     }
   }
 
   /**
-   * Wallet confirmed payment via settled_at but didn't return preimage.
-   * Trust the wallet provider (same approach as Prophet).
+   * Wallet confirmed settlement via settled_at but no preimage returned.
+   * Trust the wallet provider's confirmation (same approach as Prophet).
    */
   private handleSettledWithoutPreimage(paymentHash: string): void {
     const token: VerificationToken = {
