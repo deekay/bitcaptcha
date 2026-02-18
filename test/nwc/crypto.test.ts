@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  getNip04SharedSecret,
+  nip04Encrypt,
+  nip04Decrypt,
   getConversationKey,
   calcPaddedLen,
   nip44Encrypt,
@@ -8,6 +11,45 @@ import {
   getPublicKey,
 } from "../../src/nwc/crypto.js";
 import { hexToBytes } from "../../src/utils/hex.js";
+
+describe("NIP-04 crypto", () => {
+  const sec1 = "315e59ff51cb9209768cf7da80791ddcaae56ac9775eb25b6dee1234bc5d2268";
+  const sec2 = "a1e37752c9fdc1273be53f68c5f74be7c8905728e8de75800b94262f9497c86e";
+  const pub2 = getPublicKey(sec2);
+
+  describe("getNip04SharedSecret", () => {
+    it("derives a 32-byte shared secret", () => {
+      const secret = getNip04SharedSecret(sec1, pub2);
+      expect(secret.length).toBe(32);
+    });
+
+    it("is symmetric", () => {
+      const pub1 = getPublicKey(sec1);
+      const s1 = getNip04SharedSecret(sec1, pub2);
+      const s2 = getNip04SharedSecret(sec2, pub1);
+      expect(Buffer.from(s1).toString("hex")).toBe(Buffer.from(s2).toString("hex"));
+    });
+  });
+
+  describe("encrypt/decrypt round-trip", () => {
+    it("encrypts and decrypts a simple message", async () => {
+      const sharedSecret = getNip04SharedSecret(sec1, pub2);
+      const plaintext = '{"method":"make_invoice","params":{"amount":100000}}';
+      const encrypted = await nip04Encrypt(plaintext, sharedSecret);
+      expect(encrypted).toContain("?iv=");
+      const decrypted = await nip04Decrypt(encrypted, sharedSecret);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    it("works with unicode", async () => {
+      const sharedSecret = getNip04SharedSecret(sec1, pub2);
+      const plaintext = "Hello \u{1F355} world";
+      const encrypted = await nip04Encrypt(plaintext, sharedSecret);
+      const decrypted = await nip04Decrypt(encrypted, sharedSecret);
+      expect(decrypted).toBe(plaintext);
+    });
+  });
+});
 
 describe("NIP-44 crypto", () => {
   describe("getConversationKey", () => {

@@ -7,7 +7,66 @@ import { randomBytes } from "@noble/hashes/utils";
 import { hexToBytes, bytesToHex, utf8ToBytes } from "../utils/hex.js";
 import type { UnsignedEvent, NostrEvent } from "./types.js";
 
-// --- Conversation Key (ECDH + HKDF-Extract) ---
+// --- NIP-04 Shared Secret (raw ECDH x-coordinate) ---
+
+export function getNip04SharedSecret(
+  privateKeyHex: string,
+  publicKeyHex: string,
+): Uint8Array {
+  const sharedPoint = secp256k1.getSharedSecret(
+    hexToBytes(privateKeyHex),
+    hexToBytes("02" + publicKeyHex),
+  );
+  return sharedPoint.slice(1, 33);
+}
+
+export async function nip04Encrypt(
+  plaintext: string,
+  sharedSecret: Uint8Array,
+): Promise<string> {
+  const iv = crypto.getRandomValues(new Uint8Array(16));
+  const key = await crypto.subtle.importKey(
+    "raw",
+    sharedSecret,
+    { name: "AES-CBC" },
+    false,
+    ["encrypt"],
+  );
+  const encoded = utf8ToBytes(plaintext);
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-CBC", iv },
+    key,
+    encoded,
+  );
+  const ctBase64 = btoa(String.fromCharCode(...new Uint8Array(ciphertext)));
+  const ivBase64 = btoa(String.fromCharCode(...iv));
+  return ctBase64 + "?iv=" + ivBase64;
+}
+
+export async function nip04Decrypt(
+  payload: string,
+  sharedSecret: Uint8Array,
+): Promise<string> {
+  const [ctBase64, ivPart] = payload.split("?iv=");
+  if (!ivPart) throw new Error("Invalid NIP-04 payload: missing ?iv=");
+  const ciphertext = Uint8Array.from(atob(ctBase64), (c) => c.charCodeAt(0));
+  const iv = Uint8Array.from(atob(ivPart), (c) => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey(
+    "raw",
+    sharedSecret,
+    { name: "AES-CBC" },
+    false,
+    ["decrypt"],
+  );
+  const decrypted = await crypto.subtle.decrypt(
+    { name: "AES-CBC", iv },
+    key,
+    ciphertext,
+  );
+  return new TextDecoder().decode(decrypted);
+}
+
+// --- NIP-44 Conversation Key (ECDH + HKDF-Extract) ---
 
 const NIP44_SALT = utf8ToBytes("nip44-v2");
 

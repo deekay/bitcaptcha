@@ -1,7 +1,7 @@
 import {
-  getConversationKey,
-  nip44Encrypt,
-  nip44Decrypt,
+  getNip04SharedSecret,
+  nip04Encrypt,
+  nip04Decrypt,
   computeEventId,
   signEvent,
   getPublicKey,
@@ -18,24 +18,19 @@ import type {
 
 const NWC_REQUEST_KIND = 23194;
 const NWC_RESPONSE_KIND = 23195;
-const NWC_INFO_KIND = 13194;
 const DEFAULT_TIMEOUT = 30_000;
 
 export class NwcClient {
   private params: NwcConnectionParams;
   private clientPubkey: string;
-  private conversationKey: Uint8Array;
+  private sharedSecret: Uint8Array;
   private ws: WebSocket | null = null;
-  private pendingRequests = new Map<
-    string,
-    { resolve: (r: NwcResponse) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }
-  >();
-  private subscriptionId: string | null = null;
+  private wsConnecting: Promise<void> | null = null;
 
   constructor(nwcUri: string) {
     this.params = parseNwcUri(nwcUri);
     this.clientPubkey = getPublicKey(this.params.secret);
-    this.conversationKey = getConversationKey(
+    this.sharedSecret = getNip04SharedSecret(
       this.params.secret,
       this.params.walletPubkey,
     );
@@ -44,7 +39,10 @@ export class NwcClient {
   async connect(): Promise<void> {
     if (this.ws?.readyState === WebSocket.OPEN) return;
 
-    return new Promise<void>((resolve, reject) => {
+    // If already connecting, wait for that to finish
+    if (this.wsConnecting) return this.wsConnecting;
+
+    this.wsConnecting = new Promise<void>((resolve, reject) => {
       const ws = new WebSocket(this.params.relayUrl);
       this.ws = ws;
 
@@ -55,7 +53,6 @@ export class NwcClient {
 
       ws.onopen = () => {
         clearTimeout(timeout);
-        this.subscribe();
         resolve();
       };
 
@@ -64,84 +61,31 @@ export class NwcClient {
         reject(new Error("WebSocket connection failed"));
       };
 
-      ws.onmessage = (event: MessageEvent) => {
-        this.handleMessage(event.data);
-      };
-
       ws.onclose = () => {
         this.ws = null;
-        // Reject all pending requests
-        for (const [id, req] of this.pendingRequests) {
-          clearTimeout(req.timer);
-          req.reject(new Error("WebSocket closed"));
-          this.pendingRequests.delete(id);
-        }
+        this.wsConnecting = null;
       };
     });
+
+    return this.wsConnecting;
   }
 
-  private subscribe(): void {
-    // Subscribe to NWC response events addressed to us
-    this.subscriptionId = "bitcaptcha-" + Math.random().toString(36).slice(2, 8);
-    const filter = {
-      kinds: [NWC_RESPONSE_KIND],
-      authors: [this.params.walletPubkey],
-      "#p": [this.clientPubkey],
-      since: Math.floor(Date.now() / 1000) - 10,
-    };
-    this.send(["REQ", this.subscriptionId, filter]);
-  }
-
-  private handleMessage(raw: string): void {
-    let msg: unknown[];
-    try {
-      msg = JSON.parse(raw);
-    } catch {
-      return;
-    }
-
-    if (!Array.isArray(msg)) return;
-
-    if (msg[0] === "EVENT" && msg[2]) {
-      this.handleEvent(msg[2] as NostrEvent);
-    }
-  }
-
-  private handleEvent(event: NostrEvent): void {
-    if (event.kind !== NWC_RESPONSE_KIND) return;
-    if (event.pubkey !== this.params.walletPubkey) return;
-
-    // Find the request event ID this is responding to (in "e" tag)
-    const eTag = event.tags.find((t) => t[0] === "e");
-    if (!eTag) return;
-    const requestId = eTag[1];
-
-    const pending = this.pendingRequests.get(requestId);
-    if (!pending) return;
-
-    try {
-      const decrypted = nip44Decrypt(event.content, this.conversationKey);
-      const response = JSON.parse(decrypted) as NwcResponse;
-      clearTimeout(pending.timer);
-      this.pendingRequests.delete(requestId);
-      pending.resolve(response);
-    } catch (err) {
-      clearTimeout(pending.timer);
-      this.pendingRequests.delete(requestId);
-      pending.reject(
-        err instanceof Error ? err : new Error("Failed to decrypt response"),
-      );
-    }
-  }
-
+  /**
+   * Send an NWC request using the Prophet pattern:
+   * 1. Subscribe for the response (filtering by request event ID)
+   * 2. Wait for EOSE (subscription is active on relay)
+   * 3. Only THEN publish the request event
+   * This avoids the race condition where a response arrives before
+   * the subscription is active.
+   */
   private async sendRequest(request: NwcRequest): Promise<NwcResponse> {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       await this.connect();
     }
 
-    const encrypted = nip44Encrypt(
+    const encrypted = await nip04Encrypt(
       JSON.stringify(request),
-      this.conversationKey,
+      this.sharedSecret,
     );
 
     const event = await signEvent(
@@ -155,14 +99,79 @@ export class NwcClient {
       this.params.secret,
     );
 
+    const ws = this.ws!;
+    const subId = "bitcaptcha-" + event.id.slice(0, 8);
+
     return new Promise<NwcResponse>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pendingRequests.delete(event.id);
+      const timeout = setTimeout(() => {
+        // Unsubscribe and clean up
+        this.send(["CLOSE", subId]);
+        ws.removeEventListener("message", onMessage);
         reject(new Error(`NWC request timeout: ${request.method}`));
       }, DEFAULT_TIMEOUT);
 
-      this.pendingRequests.set(event.id, { resolve, reject, timer });
-      this.send(["EVENT", event]);
+      let eoseReceived = false;
+
+      const onMessage = (msg: MessageEvent) => {
+        let parsed: unknown[];
+        try {
+          parsed = JSON.parse(msg.data);
+        } catch {
+          return;
+        }
+        if (!Array.isArray(parsed)) return;
+
+        // Wait for EOSE before publishing the request
+        if (parsed[0] === "EOSE" && parsed[1] === subId) {
+          if (!eoseReceived) {
+            eoseReceived = true;
+            // Now safe to publish — relay is listening
+            this.send(["EVENT", event]);
+          }
+          return;
+        }
+
+        // Handle response event
+        if (parsed[0] === "EVENT" && parsed[1] === subId && parsed[2]) {
+          const responseEvent = parsed[2] as NostrEvent;
+          if (responseEvent.kind !== NWC_RESPONSE_KIND) return;
+          if (responseEvent.pubkey !== this.params.walletPubkey) return;
+
+          // Verify this response is for our request (check "e" tag)
+          const eTag = responseEvent.tags.find((t) => t[0] === "e");
+          if (!eTag || eTag[1] !== event.id) return;
+
+          nip04Decrypt(responseEvent.content, this.sharedSecret)
+            .then((decrypted) => {
+              const response = JSON.parse(decrypted) as NwcResponse;
+              clearTimeout(timeout);
+              this.send(["CLOSE", subId]);
+              ws.removeEventListener("message", onMessage);
+              resolve(response);
+            })
+            .catch((err) => {
+              clearTimeout(timeout);
+              this.send(["CLOSE", subId]);
+              ws.removeEventListener("message", onMessage);
+              reject(
+                err instanceof Error
+                  ? err
+                  : new Error("Failed to decrypt response"),
+              );
+            });
+        }
+      };
+
+      ws.addEventListener("message", onMessage);
+
+      // Subscribe for the response FIRST, filtering by our request event ID
+      const filter = {
+        kinds: [NWC_RESPONSE_KIND],
+        "#e": [event.id],
+        "#p": [this.clientPubkey],
+        since: Math.floor(Date.now() / 1000) - 10,
+      };
+      this.send(["REQ", subId, filter]);
     });
   }
 
@@ -209,15 +218,8 @@ export class NwcClient {
   }
 
   disconnect(): void {
-    if (this.subscriptionId && this.ws?.readyState === WebSocket.OPEN) {
-      this.send(["CLOSE", this.subscriptionId]);
-    }
-    for (const [id, req] of this.pendingRequests) {
-      clearTimeout(req.timer);
-      req.reject(new Error("Client disconnected"));
-      this.pendingRequests.delete(id);
-    }
     this.ws?.close();
     this.ws = null;
+    this.wsConnecting = null;
   }
 }
